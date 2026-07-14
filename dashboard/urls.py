@@ -1,8 +1,10 @@
 from django.urls import path
 
 from dashboard.views import (
+    FranchiseStatementAPIView,
     OrderCompleteDashboardAPI,
-    OrderDailyStatsAPI,
+    OrderDailyDeliveredStatsAPI,
+    OrderDailyPlacedStatsAPI,
     OrderStatusDashboardAPI,
 )
 
@@ -16,8 +18,18 @@ urlpatterns = [
         name="order-complete-dashboard",
     ),
     path(
-        "orders/dashboard/daily/",
-        OrderDailyStatsAPI.as_view(),
-        name="order-daily-stats",
+        "orders/dashboard/daily/placed/",
+        OrderDailyPlacedStatsAPI.as_view(),
+        name="order-daily-placed-stats",
+    ),
+    path(
+        "orders/dashboard/daily/delivered/",
+        OrderDailyDeliveredStatsAPI.as_view(),
+        name="order-daily-delivered-stats",
+    ),
+    path(
+        "franchise/statement/",
+        FranchiseStatementAPIView.as_view(),
+        name="franchise-statement",
     ),
 ]

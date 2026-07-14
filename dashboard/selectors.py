@@ -1,4 +1,4 @@
-from collections import defaultdict
+from datetime import datetime, timedelta
 
 from django.contrib.auth import get_user_model
 from django.db import models
@@ -8,7 +8,6 @@ from django.utils import timezone
 
 from invoice.models import Invoice
 from logistics.models import (
-    AssignOrder,
     Order,
     OrderChangeLog,
 )
@@ -197,24 +196,21 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
     ]
     total_cod = get_status_info(active_cod_statuses)
 
-    total_rtv = get_status_info(
-        [
-            Order.STATUS_RETURNING_TO_VENDOR,
-            Order.STATUS_RETURNED_TO_VENDOR,
-        ]
-    )
+    total_rtv = get_status_info([
+        Order.STATUS_RETURNING_TO_VENDOR,
+        Order.STATUS_RETURNED_TO_VENDOR,
+    ])
 
     # 2. Delivery Charges and Cancellation Charges
-    assign_order_qs = AssignOrder.objects.filter(order__user_id=query_user_id)
     valid_charge = (
-        assign_order_qs.filter(order__status=Order.STATUS_DELIVERED).aggregate(
+        orders.filter(status=Order.STATUS_DELIVERED).aggregate(
             total=Sum("ydm_delivery_charge")
         )["total"]
         or 0.0
     )
     cancelled_charge = (
-        assign_order_qs.filter(
-            order__status__in=[
+        orders.filter(
+            status__in=[
                 Order.STATUS_CANCELLED,
                 Order.STATUS_RETURNING_TO_VENDOR,
                 Order.STATUS_RETURNED_TO_VENDOR,
@@ -241,7 +237,8 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
 
     # 4. Last COD Payment (from approved invoices)
     last_invoice = (
-        Invoice.objects.filter(user_id=query_user_id, is_approved=True)
+        Invoice.objects
+        .filter(user_id=query_user_id, is_approved=True)
         .order_by("-approved_at")
         .first()
     )
@@ -260,25 +257,29 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
         changed_at__date=today, order__user_id=query_user_id
     )
     todays_placed = (
-        todays_logs.filter(new_status=Order.STATUS_ORDER_PLACED)
+        todays_logs
+        .filter(new_status=Order.STATUS_ORDER_PLACED)
         .values("order_id")
         .distinct()
         .count()
     )
     todays_delivered = (
-        todays_logs.filter(new_status=Order.STATUS_DELIVERED)
+        todays_logs
+        .filter(new_status=Order.STATUS_DELIVERED)
         .values("order_id")
         .distinct()
         .count()
     )
     todays_rescheduled = (
-        todays_logs.filter(new_status=Order.STATUS_RESCHEDULED)
+        todays_logs
+        .filter(new_status=Order.STATUS_RESCHEDULED)
         .values("order_id")
         .distinct()
         .count()
     )
     todays_rtv = (
-        todays_logs.filter(
+        todays_logs
+        .filter(
             new_status__in=[
                 Order.STATUS_CANCELLED,
                 Order.STATUS_RETURNING_TO_VENDOR,
@@ -314,18 +315,20 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
             "total_delivered": delivered_stats,
             "total_rtv": total_rtv,
             "total_delivery_charge": {
-                "nos": assign_order_qs.filter(
-                    order__status=Order.STATUS_DELIVERED
+                "nos": orders.filter(
+                    status=Order.STATUS_DELIVERED,
+                    ydm_delivery_charge__isnull=False,
                 ).count(),
                 "amount": float(valid_charge),
             },
             "total_cancellation_charge": {
-                "nos": assign_order_qs.filter(
-                    order__status__in=[
+                "nos": orders.filter(
+                    status__in=[
                         Order.STATUS_CANCELLED,
                         Order.STATUS_RETURNING_TO_VENDOR,
                         Order.STATUS_RETURNED_TO_VENDOR,
-                    ]
+                    ],
+                    ydm_cancelled_charge__isnull=False,
                 ).count(),
                 "amount": float(cancelled_charge),
             },
@@ -348,44 +351,328 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
     }
 
 
-def get_daily_order_stats(user=None, target_user_id=None) -> list:
+def get_date_range(filter=None, start_date=None, end_date=None):
+    today = timezone.now().date()
+    if start_date:
+        try:
+            if isinstance(start_date, str):
+                start = datetime.strptime(start_date, "%Y-%m-%d").date()
+            else:
+                start = start_date
+        except ValueError:
+            start = today.replace(day=1)
+        try:
+            if isinstance(end_date, str):
+                end = datetime.strptime(end_date, "%Y-%m-%d").date()
+            elif end_date:
+                end = end_date
+            else:
+                end = today
+        except ValueError:
+            end = today
+    elif filter == "weekly":
+        start = today - timedelta(days=6)
+        end = today
+    else:  # filter == "monthly" or default
+        start = today.replace(day=1)
+        end = today
+    return start, end
+
+
+def get_daily_placed_order_stats(
+    user=None, target_user_id=None, filter=None, start_date=None, end_date=None
+) -> list:
     """
-    Returns daily stats of placed and delivered orders grouped by date.
-    Optimized to query and group using Django ORM to prevent N+1 queries.
+    Returns daily stats of placed orders grouped by date, within the specified filter range.
     """
     query_user_id = target_user_id
     if not query_user_id and user:
         query_user_id = user.id
 
+    start, end = get_date_range(filter, start_date, end_date)
+
     daily_aggregates = (
-        OrderChangeLog.objects.filter(
+        OrderChangeLog.objects
+        .filter(
             order__user_id=query_user_id,
-            new_status__in=[Order.STATUS_ORDER_PLACED, Order.STATUS_DELIVERED],
+            new_status=Order.STATUS_ORDER_PLACED,
+            changed_at__date__range=[start, end],
         )
         .annotate(change_date=TruncDate("changed_at"))
-        .values("change_date", "new_status")
+        .values("change_date")
         .annotate(count=Count("order_id", distinct=True))
         .order_by("change_date")
     )
 
-    data_by_date = defaultdict(lambda: {"placed_count": 0, "delivered_count": 0})
+    # Generate all dates in the range to fill in zeros
+    date_map = {}
+    curr = start
+    while curr <= end:
+        date_map[curr] = 0
+        curr += timedelta(days=1)
+
     for row in daily_aggregates:
-        d = row["change_date"]
-        status_val = row["new_status"]
-        count = row["count"]
-        if status_val == Order.STATUS_ORDER_PLACED:
-            data_by_date[d]["placed_count"] = count
-        elif status_val == Order.STATUS_DELIVERED:
-            data_by_date[d]["delivered_count"] = count
+        date_map[row["change_date"]] = row["count"]
 
-    formatted_stats = []
-    for d in sorted(data_by_date.keys()):
-        formatted_stats.append(
-            {
-                "date": d,
-                "placed_count": data_by_date[d]["placed_count"],
-                "delivered_count": data_by_date[d]["delivered_count"],
-            }
+    return [{"date": d, "placed_count": date_map[d]} for d in sorted(date_map.keys())]
+
+
+def get_daily_delivered_order_stats(
+    user=None, target_user_id=None, filter=None, start_date=None, end_date=None
+) -> list:
+    """
+    Returns daily stats of delivered orders grouped by date, within the specified filter range.
+    """
+    query_user_id = target_user_id
+    if not query_user_id and user:
+        query_user_id = user.id
+
+    start, end = get_date_range(filter, start_date, end_date)
+
+    daily_aggregates = (
+        OrderChangeLog.objects
+        .filter(
+            order__user_id=query_user_id,
+            new_status=Order.STATUS_DELIVERED,
+            changed_at__date__range=[start, end],
         )
+        .annotate(change_date=TruncDate("changed_at"))
+        .values("change_date")
+        .annotate(count=Count("order_id", distinct=True))
+        .order_by("change_date")
+    )
 
-    return formatted_stats
+    # Generate all dates in the range to fill in zeros
+    date_map = {}
+    curr = start
+    while curr <= end:
+        date_map[curr] = 0
+        curr += timedelta(days=1)
+
+    for row in daily_aggregates:
+        date_map[row["change_date"]] = row["count"]
+
+    return [
+        {"date": d, "delivered_count": date_map[d]} for d in sorted(date_map.keys())
+    ]
+
+
+def calculate_dashboard_pending_cod(franchise_id) -> dict:
+    orders = Order.objects.filter(user_id=franchise_id)
+    delivered_orders = orders.filter(status=Order.STATUS_DELIVERED)
+    cancelled_orders = orders.filter(
+        status__in=[
+            Order.STATUS_CANCELLED,
+            Order.STATUS_RETURNING_TO_VENDOR,
+            Order.STATUS_RETURNED_TO_VENDOR,
+        ]
+    )
+
+    delivered_amount = (
+        delivered_orders.aggregate(total=Sum("cod_amount"))["total"] or 0.0
+    )
+    total_order = orders.count()
+    total_amount = orders.aggregate(total=Sum("cod_amount"))["total"] or 0.0
+
+    delivered_count = delivered_orders.count()
+    cancelled_count = cancelled_orders.count()
+
+    valid_charge = (
+        delivered_orders.aggregate(total=Sum("ydm_delivery_charge"))["total"] or 0.0
+    )
+    cancelled_charge = (
+        cancelled_orders.aggregate(total=Sum("ydm_cancelled_charge"))["total"] or 0.0
+    )
+    total_charge = valid_charge + cancelled_charge
+
+    approved_paid = (
+        Invoice.objects.filter(user_id=franchise_id, is_approved=True).aggregate(
+            total=Sum("paid_amount")
+        )["total"]
+        or 0.0
+    )
+
+    pending_cod = max(
+        0.0, float(delivered_amount) - float(total_charge) - float(approved_paid)
+    )
+
+    return {
+        "pending_cod": pending_cod,
+        "delivered_amount": float(delivered_amount),
+        "total_order": total_order,
+        "total_amount": float(total_amount),
+        "total_charge": float(total_charge),
+        "approved_paid": float(approved_paid),
+        "delivered_count": delivered_count,
+        "cancelled_count": cancelled_count,
+    }
+
+
+def generate_order_tracking_statement_optimized(
+    franchise_id, start_date, end_date, dashboard_data=None
+) -> list:
+    # 1. Historical balance before start_date
+    delivered_before_ids = list(
+        OrderChangeLog.objects
+        .filter(
+            order__user_id=franchise_id,
+            new_status=Order.STATUS_DELIVERED,
+            changed_at__date__lt=start_date,
+        )
+        .values_list("order_id", flat=True)
+        .distinct()
+    )
+
+    delivered_before_orders = Order.objects.filter(id__in=delivered_before_ids)
+    hist_cash_in = (
+        delivered_before_orders.aggregate(total=Sum("cod_amount"))["total"] or 0.0
+    )
+    hist_delivery_charge = (
+        delivered_before_orders.aggregate(total=Sum("ydm_delivery_charge"))["total"]
+        or 0.0
+    )
+
+    cancelled_before_ids = list(
+        OrderChangeLog.objects
+        .filter(
+            order__user_id=franchise_id,
+            new_status__in=[
+                Order.STATUS_CANCELLED,
+                Order.STATUS_RETURNING_TO_VENDOR,
+                Order.STATUS_RETURNED_TO_VENDOR,
+            ],
+            changed_at__date__lt=start_date,
+        )
+        .values_list("order_id", flat=True)
+        .distinct()
+    )
+    cancelled_before_orders = Order.objects.filter(id__in=cancelled_before_ids)
+    hist_cancelled_charge = (
+        cancelled_before_orders.aggregate(total=Sum("ydm_cancelled_charge"))["total"]
+        or 0.0
+    )
+
+    hist_payments = (
+        Invoice.objects.filter(
+            user_id=franchise_id,
+            is_approved=True,
+            approved_at__date__lt=start_date,
+        ).aggregate(total=Sum("paid_amount"))["total"]
+        or 0.0
+    )
+
+    running_balance = (
+        float(hist_cash_in)
+        - float(hist_delivery_charge)
+        - float(hist_cancelled_charge)
+        - float(hist_payments)
+    )
+
+    # 2. Get range data
+    placed_orders = (
+        Order.objects
+        .filter(
+            user_id=franchise_id,
+            created_at__date__range=[start_date, end_date],
+        )
+        .values("created_at__date")
+        .annotate(count=Count("id"), amount=Sum("cod_amount"))
+    )
+    placed_map = {
+        row["created_at__date"]: {
+            "count": row["count"],
+            "amount": float(row["amount"] or 0.0),
+        }
+        for row in placed_orders
+    }
+
+    delivered_logs = (
+        OrderChangeLog.objects
+        .filter(
+            order__user_id=franchise_id,
+            new_status=Order.STATUS_DELIVERED,
+            changed_at__date__range=[start_date, end_date],
+        )
+        .select_related("order")
+        .order_by("changed_at")
+    )
+
+    cancelled_logs = (
+        OrderChangeLog.objects
+        .filter(
+            order__user_id=franchise_id,
+            new_status__in=[
+                Order.STATUS_CANCELLED,
+                Order.STATUS_RETURNING_TO_VENDOR,
+                Order.STATUS_RETURNED_TO_VENDOR,
+            ],
+            changed_at__date__range=[start_date, end_date],
+        )
+        .select_related("order")
+        .order_by("changed_at")
+    )
+
+    delivered_map = {}
+    seen_delivered_orders = set()
+    for log in delivered_logs:
+        d = log.changed_at.date()
+        if log.order_id in seen_delivered_orders:
+            continue
+        seen_delivered_orders.add(log.order_id)
+        if d not in delivered_map:
+            delivered_map[d] = {"count": 0, "cash_in": 0.0, "charge": 0.0}
+        delivered_map[d]["count"] += 1
+        delivered_map[d]["cash_in"] += float(log.order.cod_amount or 0.0)
+        delivered_map[d]["charge"] += float(log.order.ydm_delivery_charge or 0.0)
+
+    cancelled_map = {}
+    seen_cancelled_orders = set()
+    for log in cancelled_logs:
+        d = log.changed_at.date()
+        if log.order_id in seen_cancelled_orders:
+            continue
+        seen_cancelled_orders.add(log.order_id)
+        if d not in cancelled_map:
+            cancelled_map[d] = {"charge": 0.0}
+        cancelled_map[d]["charge"] += float(log.order.ydm_cancelled_charge or 0.0)
+
+    payments = (
+        Invoice.objects
+        .filter(
+            user_id=franchise_id,
+            is_approved=True,
+            approved_at__date__range=[start_date, end_date],
+        )
+        .values("approved_at__date")
+        .annotate(amount=Sum("paid_amount"))
+    )
+    payments_map = {
+        row["approved_at__date"]: float(row["amount"] or 0.0) for row in payments
+    }
+
+    # 3. Accumulate day-by-day
+    statement_data = []
+    curr = start_date
+    while curr <= end_date:
+        placed = placed_map.get(curr, {"count": 0, "amount": 0.0})
+        deliv = delivered_map.get(curr, {"count": 0, "cash_in": 0.0, "charge": 0.0})
+        canc = cancelled_map.get(curr, {"charge": 0.0})
+
+        day_charge = deliv["charge"] + canc["charge"]
+        pay = payments_map.get(curr, 0.0)
+
+        running_balance += deliv["cash_in"] - day_charge - pay
+
+        statement_data.append({
+            "date": curr,
+            "total_order": placed["count"],
+            "total_amount": placed["amount"],
+            "delivery_count": deliv["count"],
+            "cash_in": deliv["cash_in"],
+            "delivery_charge": day_charge,
+            "payment": pay,
+            "balance": running_balance,
+        })
+        curr += timedelta(days=1)
+
+    return statement_data

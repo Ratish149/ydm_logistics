@@ -99,6 +99,32 @@ class Order(models.Model):
         db_index=True,
     )
     remarks = models.TextField(blank=True, null=True)
+    is_rider_verified = models.BooleanField(default=False)
+    ydm_delivery_charge = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Logistics delivery charge set by the rider based on delivery address (separate from franchise delivery_charge)",
+    )
+    delivery_location_type = models.CharField(
+        max_length=50,
+        choices=[
+            ("Inside Ringroad", "Inside Ringroad"),
+            ("Outside Ringroad", "Outside Ringroad"),
+        ],
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Delivery location type selected by the rider (Inside Ringroad or Outside Ringroad).",
+    )
+    ydm_cancelled_charge = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Logistics cancelled charge set when the order is assigned or updated (separate from franchise delivery_charge)",
+    )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -206,59 +232,6 @@ class OrderChangeLog(models.Model):
 
     def __str__(self):
         return f"{self.order.tracking_number} - {self.old_status} → {self.new_status}"
-
-
-class AssignOrder(models.Model):
-    order = models.ForeignKey(
-        Order, on_delete=models.CASCADE, related_name="assign_orders"
-    )
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name="rider_assignments",
-    )
-    assigned_at = models.DateTimeField(auto_now_add=True)
-    is_rider_verified = models.BooleanField(default=False)
-    ydm_delivery_charge = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text="Logistics delivery charge set by the rider based on delivery address (separate from franchise delivery_charge)",
-    )
-
-    DELIVERY_LOCATION_CHOICES = (
-        ("Inside Ringroad", "Inside Ringroad"),
-        ("Outside Ringroad", "Outside Ringroad"),
-    )
-    delivery_location_type = models.CharField(
-        max_length=50,
-        choices=DELIVERY_LOCATION_CHOICES,
-        null=True,
-        blank=True,
-        db_index=True,
-        help_text="Delivery location type selected by the rider (Inside Ringroad or Outside Ringroad).",
-    )
-
-    ydm_cancelled_charge = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text="Logistics cancelled charge set when the order is assigned or updated (separate from franchise delivery_charge)",
-    )
-
-    class Meta:
-        ordering = ["-assigned_at"]
-        indexes = [
-            models.Index(fields=["order", "-assigned_at"]),
-            models.Index(fields=["user", "-assigned_at"]),
-        ]
-
-    def __str__(self):
-        return f"{self.user.username if self.user else 'No Rider'} - {self.order.tracking_number}"
 
 
 class YdmLogisticsSetting(models.Model):
