@@ -1,35 +1,33 @@
 from django.urls import path
 
 from dashboard.views import (
-    FranchiseStatementAPIView,
     OrderCompleteDashboardAPI,
     OrderDailyDeliveredStatsAPI,
     OrderDailyPlacedStatsAPI,
     OrderStatusDashboardAPI,
+    UserStatementAPIView,
 )
 
 urlpatterns = [
+    path("dashboard/", OrderStatusDashboardAPI.as_view(), name="order-dashboard"),
     path(
-        "orders/dashboard/", OrderStatusDashboardAPI.as_view(), name="order-dashboard"
-    ),
-    path(
-        "orders/dashboard/complete/",
+        "dashboard/complete/",
         OrderCompleteDashboardAPI.as_view(),
         name="order-complete-dashboard",
     ),
     path(
-        "orders/dashboard/daily/placed/",
+        "dashboard/daily/placed/",
         OrderDailyPlacedStatsAPI.as_view(),
         name="order-daily-placed-stats",
     ),
     path(
-        "orders/dashboard/daily/delivered/",
+        "dashboard/daily/delivered/",
         OrderDailyDeliveredStatsAPI.as_view(),
         name="order-daily-delivered-stats",
     ),
     path(
-        "franchise/statement/",
-        FranchiseStatementAPIView.as_view(),
-        name="franchise-statement",
+        "user/statement/",
+        UserStatementAPIView.as_view(),
+        name="user-statement",
     ),
 ]

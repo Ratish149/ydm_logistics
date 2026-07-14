@@ -6,60 +6,149 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('logistics', '0001_initial'),
+        ("logistics", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='YdmLogisticsSetting',
+            name="YdmLogisticsSetting",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('inside_ringroad_charge', models.DecimalField(decimal_places=2, default=100.0, help_text='YDM delivery charge for inside ringroad deliveries.', max_digits=10)),
-                ('outside_ringroad_charge', models.DecimalField(decimal_places=2, default=150.0, help_text='YDM delivery charge for outside ringroad deliveries.', max_digits=10)),
-                ('cancelled_charge', models.DecimalField(decimal_places=2, default=0.0, help_text='YDM charge for cancelled / returned deliveries.', max_digits=10)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "inside_ringroad_charge",
+                    models.DecimalField(
+                        decimal_places=2,
+                        default=100.0,
+                        help_text="YDM delivery charge for inside ringroad deliveries.",
+                        max_digits=10,
+                    ),
+                ),
+                (
+                    "outside_ringroad_charge",
+                    models.DecimalField(
+                        decimal_places=2,
+                        default=150.0,
+                        help_text="YDM delivery charge for outside ringroad deliveries.",
+                        max_digits=10,
+                    ),
+                ),
+                (
+                    "cancelled_charge",
+                    models.DecimalField(
+                        decimal_places=2,
+                        default=0.0,
+                        help_text="YDM charge for cancelled / returned deliveries.",
+                        max_digits=10,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'YDM Logistics Setting',
-                'verbose_name_plural': 'YDM Logistics Settings',
+                "verbose_name": "YDM Logistics Setting",
+                "verbose_name_plural": "YDM Logistics Settings",
             },
         ),
         migrations.AddField(
-            model_name='order',
-            name='delivery_location_type',
-            field=models.CharField(blank=True, choices=[('Inside Ringroad', 'Inside Ringroad'), ('Outside Ringroad', 'Outside Ringroad')], db_index=True, help_text='Delivery location type selected by the rider (Inside Ringroad or Outside Ringroad).', max_length=50, null=True),
+            model_name="order",
+            name="delivery_location_type",
+            field=models.CharField(
+                blank=True,
+                choices=[
+                    ("Inside Ringroad", "Inside Ringroad"),
+                    ("Outside Ringroad", "Outside Ringroad"),
+                ],
+                db_index=True,
+                help_text="Delivery location type selected by the rider (Inside Ringroad or Outside Ringroad).",
+                max_length=50,
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='order',
-            name='is_rider_verified',
+            model_name="order",
+            name="is_rider_verified",
             field=models.BooleanField(default=False),
         ),
         migrations.AddField(
-            model_name='order',
-            name='ydm_cancelled_charge',
-            field=models.DecimalField(blank=True, decimal_places=2, help_text='Logistics cancelled charge set when the order is assigned or updated (separate from franchise delivery_charge)', max_digits=10, null=True),
+            model_name="order",
+            name="ydm_cancelled_charge",
+            field=models.DecimalField(
+                blank=True,
+                decimal_places=2,
+                help_text="Logistics cancelled charge set when the order is assigned or updated (separate from franchise delivery_charge)",
+                max_digits=10,
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='order',
-            name='ydm_delivery_charge',
-            field=models.DecimalField(blank=True, decimal_places=2, help_text='Logistics delivery charge set by the rider based on delivery address (separate from franchise delivery_charge)', max_digits=10, null=True),
+            model_name="order",
+            name="ydm_delivery_charge",
+            field=models.DecimalField(
+                blank=True,
+                decimal_places=2,
+                help_text="Logistics delivery charge set by the rider based on delivery address (separate from franchise delivery_charge)",
+                max_digits=10,
+                null=True,
+            ),
         ),
         migrations.CreateModel(
-            name='OrderChangeLog',
+            name="OrderChangeLog",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('old_status', models.CharField(max_length=255)),
-                ('new_status', models.CharField(max_length=255)),
-                ('comment', models.TextField(blank=True, null=True)),
-                ('changed_at', models.DateTimeField(auto_now_add=True)),
-                ('order', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='change_logs', to='logistics.order')),
-                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("old_status", models.CharField(max_length=255)),
+                ("new_status", models.CharField(max_length=255)),
+                ("comment", models.TextField(blank=True, null=True)),
+                ("changed_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "order",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="change_logs",
+                        to="logistics.order",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['changed_at'],
-                'indexes': [models.Index(fields=['order', 'changed_at'], name='logistics_o_order_i_e03bec_idx'), models.Index(fields=['user', 'changed_at'], name='logistics_o_user_id_5b2297_idx'), models.Index(fields=['new_status', 'changed_at'], name='logistics_o_new_sta_ae7f5f_idx')],
+                "ordering": ["changed_at"],
+                "indexes": [
+                    models.Index(
+                        fields=["order", "changed_at"],
+                        name="logistics_o_order_i_e03bec_idx",
+                    ),
+                    models.Index(
+                        fields=["user", "changed_at"],
+                        name="logistics_o_user_id_5b2297_idx",
+                    ),
+                    models.Index(
+                        fields=["new_status", "changed_at"],
+                        name="logistics_o_new_sta_ae7f5f_idx",
+                    ),
+                ],
             },
         ),
     ]

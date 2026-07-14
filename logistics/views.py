@@ -25,8 +25,24 @@ class OrderListCreateAPI(ListCreateAPIView):
     permission_classes = [HasValidAPIKey]
     filterset_class = OrderFilter
 
+    def _resolve_target_user(self):
+        """
+        Returns the user whose orders should be listed.
+        - ydm role: can pass ?user_id=<id> to see any user's orders.
+          If no user_id is given, returns all orders (no user filter).
+        - Everyone else: always scoped to their own authenticated user.
+        """
+        request = self.request
+        if request.user.role == "ydm":
+            user_id = request.query_params.get("user_id")
+            if user_id:
+                return user_id  # numeric id string — resolved in selector
+            return None  # ydm with no filter → all orders
+        return request.user
+
     def get_queryset(self):
-        return order_selector.get_orders_for_client(self.request.user)
+        target = self._resolve_target_user()
+        return order_selector.get_orders_for_client(target)
 
     def get_serializer_class(self):
         if self.request.method == "POST":

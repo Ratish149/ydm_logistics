@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters as rest_filters
@@ -10,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from account.models import CustomUser
 from account.serializers import UserListSerializer
 from logistics.serializers import OrderDetailSerializer
 from rider.filters import RiderOrderFilter
@@ -26,7 +26,7 @@ from rider.serializers import RiderCommissionRateSerializer, RiderPayoutSerializ
 from rider.services.rider_service import create_rider_payout
 from ydm.utils.pagination import CustomPagination
 
-User = get_user_model()
+User = CustomUser
 
 
 class RiderCommissionView(APIView):
@@ -34,7 +34,7 @@ class RiderCommissionView(APIView):
 
     def get(self, request):
         user = request.user
-        if user.role not in ["YDM_Rider", "YDM_Operator", "YDM_Logistics"]:
+        if user.role not in ["YDM_Rider", "ydm"]:
             return Response(
                 {"detail": "You do not have permission to view rider commissions."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -76,7 +76,7 @@ class RiderPayoutView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role not in ["YDM_Rider", "YDM_Operator", "YDM_Logistics"]:
+        if user.role not in ["YDM_Rider", "ydm"]:
             raise PermissionDenied("You do not have permission to view rider payouts.")
 
         if user.role == "YDM_Rider":
@@ -95,7 +95,7 @@ class RiderPayoutView(generics.ListCreateAPIView):
         return get_rider_payouts_queryset(rider)
 
     def create(self, request, *args, **kwargs):
-        if request.user.role not in ["YDM_Logistics", "YDM_Operator"]:
+        if request.user.role not in ["ydm"]:
             return Response(
                 {"detail": "You do not have permission to log payouts."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -145,7 +145,7 @@ class RiderCommissionStatsView(APIView):
 
     def get(self, request):
         user = request.user
-        if user.role not in ["YDM_Rider", "YDM_Operator", "YDM_Logistics"]:
+        if user.role not in ["YDM_Rider", "ydm"]:
             return Response(
                 {
                     "detail": "You do not have permission to view rider commission statistics."
@@ -182,7 +182,7 @@ class RiderPackageStatsView(APIView):
 
     def get(self, request):
         user = request.user
-        if user.role not in ["YDM_Rider", "YDM_Operator", "YDM_Logistics"]:
+        if user.role not in ["YDM_Rider", "ydm"]:
             return Response(
                 {
                     "detail": "You do not have permission to view rider package statistics."
@@ -257,7 +257,7 @@ class RiderOrdersListView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role not in ["YDM_Rider", "YDM_Operator", "YDM_Logistics"]:
+        if user.role not in ["YDM_Rider", "ydm"]:
             raise PermissionDenied("You do not have permission to view rider orders.")
 
         if user.role == "YDM_Rider":
@@ -283,7 +283,7 @@ class RiderCommissionRateListCreateView(generics.ListCreateAPIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if request.user.role not in ["YDM_Operator", "YDM_Logistics", "Admin"]:
+        if request.user.role not in ["ydm", "Admin"]:
             raise PermissionDenied(
                 "Only Operators, Logistics staff, or Admins can manage commission rates."
             )
@@ -298,7 +298,7 @@ class RiderCommissionRateRetrieveUpdateDestroyView(
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if request.user.role not in ["YDM_Operator", "YDM_Logistics", "Admin"]:
+        if request.user.role not in ["ydm", "Admin"]:
             raise PermissionDenied(
                 "Only Operators, Logistics staff, or Admins can manage commission rates."
             )
@@ -309,7 +309,7 @@ class RiderDailyStatsView(APIView):
 
     def get(self, request):
         user = request.user
-        if user.role not in ["YDM_Rider", "YDM_Operator", "YDM_Logistics"]:
+        if user.role not in ["YDM_Rider", "ydm"]:
             return Response(
                 {
                     "detail": "You do not have permission to view rider daily statistics."
@@ -365,3 +365,191 @@ class RiderDailyStatsView(APIView):
 
         results = get_rider_daily_stats(rider, start_date, end_date)
         return Response(results, status=status.HTTP_200_OK)
+
+
+class RiderOrderVerifyView(APIView):
+    """
+    POST: Rider verifies an order and sets the delivery location type.
+    This only marks is_rider_verified=True and stores delivery_location_type.
+    Does NOT change order status.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, tracking_number):
+        user = request.user
+        if user.role not in ["YDM_Rider", "ydm"]:
+            return Response(
+                {"detail": "You do not have permission to verify orders."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from logistics.models import Order
+
+        try:
+            order = Order.objects.select_related("assigned_rider").get(
+                tracking_number=tracking_number
+            )
+        except Order.DoesNotExist:
+            return Response(
+                {"detail": "Order not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if user.role == "YDM_Rider" and order.assigned_rider != user:
+            return Response(
+                {"detail": "You are not assigned to this order."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        delivery_location_type = request.data.get("delivery_location_type")
+        if not delivery_location_type:
+            return Response(
+                {"detail": "delivery_location_type is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if delivery_location_type not in ["Inside Ringroad", "Outside Ringroad"]:
+            return Response(
+                {
+                    "detail": "delivery_location_type must be 'Inside Ringroad' or 'Outside Ringroad'."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.delivery_location_type = delivery_location_type
+        order.is_rider_verified = True
+        order.save(
+            update_fields=["delivery_location_type", "is_rider_verified", "updated_at"]
+        )
+
+        return Response(
+            {
+                "detail": "Order verified successfully.",
+                "tracking_number": order.tracking_number,
+                "delivery_location_type": order.delivery_location_type,
+                "is_rider_verified": order.is_rider_verified,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class RiderOrderStatusUpdateView(APIView):
+    """
+    POST: Rider changes an order status.
+    Riders can only set: DELIVERED, ON_HOLD, RESCHEDULED, CANCELLED.
+    A comment is required for ON_HOLD, RESCHEDULED, CANCELLED.
+    When DELIVERED, the ydm_delivery_charge is auto-set from YdmLogisticsSetting
+    based on delivery_location_type.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    # String literals used here because Order is only imported inside the method
+    RIDER_ALLOWED_STATUSES = {
+        "DELIVERED",
+        "ON_HOLD",
+        "RESCHEDULED",
+        "CANCELLED",
+    }
+
+    COMMENT_REQUIRED_STATUSES = {
+        "ON_HOLD",
+        "RESCHEDULED",
+        "CANCELLED",
+    }
+
+    def post(self, request, tracking_number):
+        from logistics.models import Order, YdmLogisticsSetting
+        from logistics.services.order_service import update_order_status
+
+        user = request.user
+        if user.role not in ["YDM_Rider", "ydm"]:
+            return Response(
+                {"detail": "You do not have permission to update order status."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            order = Order.objects.select_related("assigned_rider").get(
+                tracking_number=tracking_number
+            )
+        except Order.DoesNotExist:
+            return Response(
+                {"detail": "Order not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if user.role == "YDM_Rider" and order.assigned_rider != user:
+            return Response(
+                {"detail": "You are not assigned to this order."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        new_status_value = request.data.get("status")
+        comment = request.data.get("comment", "").strip()
+
+        if not new_status_value:
+            return Response(
+                {"detail": "status is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Riders are restricted to a subset of statuses
+        if new_status_value not in self.RIDER_ALLOWED_STATUSES:
+            return Response(
+                {
+                    "detail": (
+                        "Riders can only set status to: "
+                        f"{', '.join(sorted(self.RIDER_ALLOWED_STATUSES))}."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Comment required for hold/reschedule/cancel
+        if new_status_value in self.COMMENT_REQUIRED_STATUSES and not comment:
+            return Response(
+                {
+                    "detail": f"A comment is required when setting status to {new_status_value}."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # For DELIVERED: auto-set ydm_delivery_charge from location type
+        if new_status_value == Order.STATUS_DELIVERED:
+            loc_type = order.delivery_location_type
+            if not loc_type:
+                return Response(
+                    {
+                        "detail": (
+                            "Order must be verified with a delivery_location_type "
+                            "before marking as delivered."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            settings_obj = YdmLogisticsSetting.load()
+            if loc_type == "Inside Ringroad":
+                order.ydm_delivery_charge = settings_obj.inside_ringroad_charge
+            else:
+                order.ydm_delivery_charge = settings_obj.outside_ringroad_charge
+            order.delivered_at = timezone.now()
+            order.save(
+                update_fields=["ydm_delivery_charge", "delivered_at", "updated_at"]
+            )
+
+        update_order_status(
+            order,
+            new_status_value,
+            changed_by=user,
+            comment=comment or None,
+        )
+
+        return Response(
+            {
+                "detail": "Order status updated successfully.",
+                "tracking_number": order.tracking_number,
+                "status": new_status_value,
+            },
+            status=status.HTTP_200_OK,
+        )

@@ -18,5 +18,6 @@ class UserRefreshToken(RefreshToken):
         token["last_name"] = user.last_name
         token["phone_number"] = user.phone_number or ""
         token["address"] = user.address or ""
+        token["role"] = user.role
 
         return token

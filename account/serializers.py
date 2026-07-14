@@ -87,3 +87,24 @@ class UserListSerializer(serializers.ModelSerializer):
             "date_joined",
         ]
         read_only_fields = fields
+
+
+class VendorListSerializer(serializers.ModelSerializer):
+    new_order_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "phone_number",
+            "address",
+            "role",
+            "is_active",
+            "date_joined",
+            "new_order_count",
+        ]
+        read_only_fields = fields

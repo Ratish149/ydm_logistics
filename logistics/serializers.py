@@ -1,16 +1,23 @@
 from rest_framework import serializers
 
-from logistics.models import Order, OrderComment, OrderStatusHistory
+from logistics.models import Order, OrderChangeLog, OrderComment
 
 
-class OrderStatusHistorySerializer(serializers.ModelSerializer):
-    changed_by_name = serializers.CharField(
-        source="changed_by.get_full_name", default="", read_only=True
+class OrderChangeLogSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(
+        source="user.get_full_name", default="", read_only=True
     )
 
     class Meta:
-        model = OrderStatusHistory
-        fields = ["status", "changed_by", "changed_by_name", "created_at"]
+        model = OrderChangeLog
+        fields = [
+            "old_status",
+            "new_status",
+            "comment",
+            "changed_at",
+            "user",
+            "user_name",
+        ]
 
 
 class OrderCommentSerializer(serializers.ModelSerializer):
@@ -32,7 +39,7 @@ class OrderCommentSerializer(serializers.ModelSerializer):
 
 
 class OrderDetailSerializer(serializers.ModelSerializer):
-    status_history = OrderStatusHistorySerializer(many=True, read_only=True)
+    change_logs = OrderChangeLogSerializer(many=True, read_only=True)
     comments = OrderCommentSerializer(many=True, read_only=True)
     project_client = serializers.CharField(
         source="user.first_name", default="", read_only=True
@@ -71,9 +78,24 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "assigned_rider_name",
             "created_at",
             "updated_at",
-            "status_history",
+            "change_logs",
             "comments",
         ]
+
+    def update(self, instance, validated_data):
+        old_status = instance.status
+        new_status = validated_data.get("status", old_status)
+
+        order = super().update(instance, validated_data)
+
+        if old_status != new_status:
+            request = self.context.get("request")
+            user = request.user if request else self.context.get("user")
+            from logistics.services.order_service import handle_order_status_change
+
+            handle_order_status_change(order, old_status, new_status, changed_by=user)
+
+        return order
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):

@@ -46,28 +46,28 @@ def get_order_dashboard_stats(user=None, target_user_id=None) -> dict:
                 "amount": 0.0,
             },
             {
-                "status": "Order Picked",
-                "key": Order.STATUS_ORDER_DISPATCHED,
-                "nos": 0,
-                "amount": 0.0,
-            },
-            {
                 "status": "Order Verified",
                 "key": Order.STATUS_ORDER_VERIFIED,
                 "nos": 0,
                 "amount": 0.0,
             },
             {
-                "status": "Order Processing",
-                "key": Order.STATUS_READY_FOR_DISPATCH,
+                "status": "Received At Office",
+                "key": Order.STATUS_RECEIVED_AT_OFFICE,
                 "nos": 0,
                 "amount": 0.0,
             },
         ],
         "order_dispatched": [
             {
-                "status": "Received At Branch",
-                "key": Order.STATUS_RECEIVED_AT_OFFICE,
+                "status": "Ready for Dispatch",
+                "key": Order.STATUS_READY_FOR_DISPATCH,
+                "nos": 0,
+                "amount": 0.0,
+            },
+            {
+                "status": "Order Dispatched",
+                "key": Order.STATUS_ORDER_DISPATCHED,
                 "nos": 0,
                 "amount": 0.0,
             },
@@ -80,6 +80,12 @@ def get_order_dashboard_stats(user=None, target_user_id=None) -> dict:
             {
                 "status": "Rescheduled",
                 "key": Order.STATUS_RESCHEDULED,
+                "nos": 0,
+                "amount": 0.0,
+            },
+            {
+                "status": "On Hold",
+                "key": Order.STATUS_ON_HOLD,
                 "nos": 0,
                 "amount": 0.0,
             },
@@ -98,7 +104,7 @@ def get_order_dashboard_stats(user=None, target_user_id=None) -> dict:
                 "amount": 0.0,
             },
             {
-                "status": "Pending RTV",
+                "status": "Returning to Vendor",
                 "key": Order.STATUS_RETURNING_TO_VENDOR,
                 "nos": 0,
                 "amount": 0.0,
@@ -106,12 +112,6 @@ def get_order_dashboard_stats(user=None, target_user_id=None) -> dict:
             {
                 "status": "Returned to Vendor",
                 "key": Order.STATUS_RETURNED_TO_VENDOR,
-                "nos": 0,
-                "amount": 0.0,
-            },
-            {
-                "status": "On Hold",
-                "key": Order.STATUS_ON_HOLD,
                 "nos": 0,
                 "amount": 0.0,
             },
@@ -457,8 +457,8 @@ def get_daily_delivered_order_stats(
     ]
 
 
-def calculate_dashboard_pending_cod(franchise_id) -> dict:
-    orders = Order.objects.filter(user_id=franchise_id)
+def calculate_dashboard_pending_cod(user_id) -> dict:
+    orders = Order.objects.filter(user_id=user_id)
     delivered_orders = orders.filter(status=Order.STATUS_DELIVERED)
     cancelled_orders = orders.filter(
         status__in=[
@@ -486,7 +486,7 @@ def calculate_dashboard_pending_cod(franchise_id) -> dict:
     total_charge = valid_charge + cancelled_charge
 
     approved_paid = (
-        Invoice.objects.filter(user_id=franchise_id, is_approved=True).aggregate(
+        Invoice.objects.filter(user_id=user_id, is_approved=True).aggregate(
             total=Sum("paid_amount")
         )["total"]
         or 0.0
@@ -509,13 +509,13 @@ def calculate_dashboard_pending_cod(franchise_id) -> dict:
 
 
 def generate_order_tracking_statement_optimized(
-    franchise_id, start_date, end_date, dashboard_data=None
+    user_id, start_date, end_date, dashboard_data=None
 ) -> list:
     # 1. Historical balance before start_date
     delivered_before_ids = list(
         OrderChangeLog.objects
         .filter(
-            order__user_id=franchise_id,
+            order__user_id=user_id,
             new_status=Order.STATUS_DELIVERED,
             changed_at__date__lt=start_date,
         )
@@ -535,7 +535,7 @@ def generate_order_tracking_statement_optimized(
     cancelled_before_ids = list(
         OrderChangeLog.objects
         .filter(
-            order__user_id=franchise_id,
+            order__user_id=user_id,
             new_status__in=[
                 Order.STATUS_CANCELLED,
                 Order.STATUS_RETURNING_TO_VENDOR,
@@ -554,7 +554,7 @@ def generate_order_tracking_statement_optimized(
 
     hist_payments = (
         Invoice.objects.filter(
-            user_id=franchise_id,
+            user_id=user_id,
             is_approved=True,
             approved_at__date__lt=start_date,
         ).aggregate(total=Sum("paid_amount"))["total"]
@@ -572,7 +572,7 @@ def generate_order_tracking_statement_optimized(
     placed_orders = (
         Order.objects
         .filter(
-            user_id=franchise_id,
+            user_id=user_id,
             created_at__date__range=[start_date, end_date],
         )
         .values("created_at__date")
@@ -589,7 +589,7 @@ def generate_order_tracking_statement_optimized(
     delivered_logs = (
         OrderChangeLog.objects
         .filter(
-            order__user_id=franchise_id,
+            order__user_id=user_id,
             new_status=Order.STATUS_DELIVERED,
             changed_at__date__range=[start_date, end_date],
         )
@@ -600,7 +600,7 @@ def generate_order_tracking_statement_optimized(
     cancelled_logs = (
         OrderChangeLog.objects
         .filter(
-            order__user_id=franchise_id,
+            order__user_id=user_id,
             new_status__in=[
                 Order.STATUS_CANCELLED,
                 Order.STATUS_RETURNING_TO_VENDOR,
@@ -639,7 +639,7 @@ def generate_order_tracking_statement_optimized(
     payments = (
         Invoice.objects
         .filter(
-            user_id=franchise_id,
+            user_id=user_id,
             is_approved=True,
             approved_at__date__range=[start_date, end_date],
         )

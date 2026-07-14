@@ -29,9 +29,9 @@ class InvoiceListCreateView(generics.ListCreateAPIView):
         user = self.request.user
         if not user or not user.is_authenticated:
             raise serializers.ValidationError("User authentication is required")
-        if user.role == "Franchise":
+        if user.role == "vendor":
             return self.queryset.filter(user=user)
-        if user.role == "YDM_Logistics":
+        if user.role == "ydm":
             return self.queryset
         return self.queryset.filter(user=user)
 
@@ -40,7 +40,7 @@ class InvoiceListCreateView(generics.ListCreateAPIView):
         if not user or not user.is_authenticated:
             raise serializers.ValidationError("User authentication is required")
 
-        if user.role != "YDM_Logistics":
+        if user.role != "ydm":
             raise serializers.ValidationError(
                 "User is not authorized to create invoices"
             )

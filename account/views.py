@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model, login
+from django.db.models import Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -8,12 +9,13 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from account.authentication import APIKeyAuthentication
 from account.filters import UserFilter
-from account.permissions import HasValidAPIKey
+from account.permissions import HasValidAPIKey, IsYDM
 from account.serializers import (
     APIKeySerializer,
     UserListSerializer,
     UserLoginSerializer,
     UserRegisterSerializer,
+    VendorListSerializer,
 )
 from account.services import api_key_service
 from account.tokens import UserRefreshToken
@@ -111,3 +113,29 @@ class UserListAPI(generics.ListAPIView):
     pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend]
     filterset_class = UserFilter
+
+
+class VendorListAPI(generics.ListAPIView):
+    """
+    GET: List all vendor users with a count of their unverified (ORDER_PLACED) orders.
+    """
+
+    serializer_class = VendorListSerializer
+    authentication_classes = [JWTAuthentication, APIKeyAuthentication]
+    permission_classes = [IsYDM]
+    pagination_class = CustomPagination
+
+    def get_queryset(self):
+        from logistics.models import Order
+
+        return (
+            User.objects
+            .filter(role=User.ROLE_VENDOR)
+            .annotate(
+                new_order_count=Count(
+                    "orders",
+                    filter=Q(orders__status=Order.STATUS_ORDER_PLACED),
+                )
+            )
+            .order_by("first_name", "last_name")
+        )

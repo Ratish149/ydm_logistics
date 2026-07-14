@@ -1,7 +1,7 @@
 from django.db import models
+from sales.models import Order
 
 from account.models import CustomUser
-from sales.models import Order
 
 # Crete your models here.
 
@@ -64,7 +64,7 @@ class AssignOrder(models.Model):
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Logistics delivery charge set by the rider based on delivery address (separate from franchise delivery_charge)",
+        help_text="Logistics delivery charge set by the rider based on delivery address (separate from  delivery_charge)",
     )
 
     DELIVERY_LOCATION_CHOICES = (
@@ -97,8 +97,6 @@ class AssignOrder(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.order.order_code}"
-
-
 
 
 class Invoice(models.Model):

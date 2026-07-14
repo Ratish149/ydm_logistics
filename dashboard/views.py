@@ -16,7 +16,7 @@ from dashboard.selectors import (
     get_daily_placed_order_stats,
     get_order_dashboard_stats,
 )
-from dashboard.serializers import FranchiseStatementSerializer
+from dashboard.serializers import UserStatementSerializer
 from invoice.models import Invoice
 from logistics.models import Order, OrderChangeLog
 from ydm.utils.pagination import CustomPagination
@@ -148,8 +148,8 @@ class OrderDailyDeliveredStatsAPI(APIView):
         )
 
 
-class FranchiseStatementAPIView(generics.ListAPIView):
-    serializer_class = FranchiseStatementSerializer
+class UserStatementAPIView(generics.ListAPIView):
+    serializer_class = UserStatementSerializer
     pagination_class = CustomPagination
     authentication_classes = [JWTAuthentication, APIKeyAuthentication]
     permission_classes = []
@@ -158,10 +158,10 @@ class FranchiseStatementAPIView(generics.ListAPIView):
         return []
 
     def list(self, request, *args, **kwargs):
-        franchise_id = request.query_params.get("user_id")
-        if not franchise_id:
+        user_id = request.query_params.get("user_id")
+        if not user_id:
             if request.user and request.user.is_authenticated:
-                franchise_id = request.user.id
+                user_id = request.user.id
             else:
                 return Response(
                     {
@@ -187,22 +187,22 @@ class FranchiseStatementAPIView(generics.ListAPIView):
                 )
         else:
             # fallback: detect earliest and latest activity based on our model
-            earliest_order_created = Order.objects.filter(
-                user_id=franchise_id
-            ).aggregate(Min("created_at"))["created_at__min"]
+            earliest_order_created = Order.objects.filter(user_id=user_id).aggregate(
+                Min("created_at")
+            )["created_at__min"]
 
             earliest_log_sent = OrderChangeLog.objects.filter(
-                order__user_id=franchise_id,
+                order__user_id=user_id,
                 new_status=Order.STATUS_ORDER_PLACED,
             ).aggregate(Min("changed_at"))["changed_at__min"]
 
             earliest_delivery = OrderChangeLog.objects.filter(
-                order__user_id=franchise_id,
+                order__user_id=user_id,
                 new_status=Order.STATUS_DELIVERED,
             ).aggregate(Min("changed_at"))["changed_at__min"]
 
             earliest_payment = Invoice.objects.filter(
-                user_id=franchise_id, is_approved=True
+                user_id=user_id, is_approved=True
             ).aggregate(Min("approved_at"))["approved_at__min"]
 
             latest_activity = max(
@@ -210,10 +210,10 @@ class FranchiseStatementAPIView(generics.ListAPIView):
                     None,
                     [
                         OrderChangeLog.objects.filter(
-                            order__user_id=franchise_id,
+                            order__user_id=user_id,
                         ).aggregate(Max("changed_at"))["changed_at__max"],
                         Invoice.objects.filter(
-                            user_id=franchise_id, is_approved=True
+                            user_id=user_id, is_approved=True
                         ).aggregate(Max("approved_at"))["approved_at__max"],
                     ],
                 ),
@@ -244,11 +244,11 @@ class FranchiseStatementAPIView(generics.ListAPIView):
             )
 
         # 2. Dashboard summary
-        dashboard_data = calculate_dashboard_pending_cod(franchise_id)
+        dashboard_data = calculate_dashboard_pending_cod(user_id)
 
         # 3. Build statement (optimized)
         statement_data = generate_order_tracking_statement_optimized(
-            franchise_id, start_date, end_date, dashboard_data
+            user_id, start_date, end_date, dashboard_data
         )
 
         # 4. Apply pagination
@@ -261,7 +261,7 @@ class FranchiseStatementAPIView(generics.ListAPIView):
 
         # 5. Return paginated response (DRF style)
         return paginator.get_paginated_response({
-            "franchise_id": franchise_id,
+            "user_id": user_id,
             "start_date": start_date.strftime("%Y-%m-%d"),
             "end_date": end_date.strftime("%Y-%m-%d"),
             "dashboard_pending_cod": float(dashboard_data["pending_cod"]),

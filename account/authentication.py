@@ -19,7 +19,8 @@ class APIKeyAuthentication(BaseAuthentication):
             return None
 
         key_obj = (
-            APIKey.objects.select_related("user")
+            APIKey.objects
+            .select_related("user")
             .filter(key=api_key, is_active=True, user__is_active=True)
             .first()
         )

@@ -141,30 +141,6 @@ class Order(models.Model):
         return f"{self.tracking_number} - {self.recipient_name} ({self.status})"
 
 
-class OrderStatusHistory(models.Model):
-    order = models.ForeignKey(
-        Order, on_delete=models.CASCADE, related_name="status_history"
-    )
-    status = models.CharField(max_length=50, choices=Order.STATUS_CHOICES)
-    changed_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="status_changes",
-    )
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["order", "created_at"]),
-        ]
-
-    def __str__(self):
-        return f"{self.order.tracking_number} -> {self.status} by {self.changed_by} at {self.created_at}"
-
-
 class OrderComment(models.Model):
     COMMENT_TYPE_GENERAL = "GENERAL"
     COMMENT_TYPE_FAILURE = "FAILURE"

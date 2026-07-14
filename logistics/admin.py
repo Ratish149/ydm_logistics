@@ -1,14 +1,14 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 
-from logistics.models import Order, OrderComment, OrderStatusHistory
+from logistics.models import Order, OrderChangeLog, OrderComment
 
 
-class OrderStatusHistoryInline(TabularInline):
-    model = OrderStatusHistory
+class OrderChangeLogInline(TabularInline):
+    model = OrderChangeLog
     extra = 1
-    readonly_fields = ("created_at",)
-    raw_id_fields = ("changed_by",)
+    readonly_fields = ("changed_at",)
+    raw_id_fields = ("user",)
 
 
 class OrderCommentInline(TabularInline):
@@ -39,7 +39,7 @@ class OrderAdmin(ModelAdmin):
     )
     raw_id_fields = ("user", "assigned_rider")
     readonly_fields = ("tracking_number", "created_at", "updated_at")
-    inlines = [OrderStatusHistoryInline, OrderCommentInline]
+    inlines = [OrderChangeLogInline, OrderCommentInline]
 
 
 @admin.register(OrderComment)
@@ -48,3 +48,11 @@ class OrderCommentAdmin(ModelAdmin):
     list_filter = ("comment_type", "created_at")
     search_fields = ("order__tracking_number", "message")
     raw_id_fields = ("order", "commented_by")
+
+
+@admin.register(OrderChangeLog)
+class OrderChangeLogAdmin(ModelAdmin):
+    list_display = ("order", "user", "old_status", "new_status", "changed_at")
+    list_filter = ("old_status", "new_status", "changed_at")
+    search_fields = ("order__tracking_number", "comment")
+    raw_id_fields = ("order", "user")

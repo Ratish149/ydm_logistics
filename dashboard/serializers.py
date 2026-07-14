@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 
-class FranchiseStatementSerializer(serializers.Serializer):
+class UserStatementSerializer(serializers.Serializer):
     date = serializers.DateField()
     total_order = serializers.IntegerField()
     total_amount = serializers.FloatField()

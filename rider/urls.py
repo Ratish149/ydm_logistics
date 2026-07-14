@@ -7,6 +7,8 @@ from rider.views import (
     RiderCommissionView,
     RiderDailyStatsView,
     RiderOrdersListView,
+    RiderOrderStatusUpdateView,
+    RiderOrderVerifyView,
     RiderPackageStatsView,
     RiderPayoutView,
 )
@@ -51,5 +53,15 @@ urlpatterns = [
         "rider/daily-stats/",
         RiderDailyStatsView.as_view(),
         name="rider-daily-stats",
+    ),
+    path(
+        "rider/orders/<str:tracking_number>/verify/",
+        RiderOrderVerifyView.as_view(),
+        name="rider-order-verify",
+    ),
+    path(
+        "rider/orders/<str:tracking_number>/update-status/",
+        RiderOrderStatusUpdateView.as_view(),
+        name="rider-order-update-status",
     ),
 ]

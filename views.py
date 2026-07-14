@@ -33,13 +33,13 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
-from account.models import CustomUser
-from account.serializers import SmallUserSerializer
 from sales.models import Order
 
 # You'll need to create this serializer
 from sales.serializers import OrderSerializer
+
+from account.models import CustomUser
+from account.serializers import SmallUserSerializer
 
 from .models import (
     AssignOrder,

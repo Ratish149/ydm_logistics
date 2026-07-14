@@ -4,7 +4,7 @@ import string
 from django.contrib.auth import get_user_model
 from django.db import transaction
 
-from logistics.models import Order, OrderComment, OrderStatusHistory
+from logistics.models import Order, OrderChangeLog, OrderComment
 
 User = get_user_model()
 
@@ -79,14 +79,45 @@ def create_order(
         status=Order.STATUS_ORDER_PLACED,
     )
 
-    # Initial history record
-    OrderStatusHistory.objects.create(
+    # Initial history record via ChangeLog
+    OrderChangeLog.objects.create(
         order=order,
-        status=Order.STATUS_ORDER_PLACED,
-        changed_by=user,
+        user=user,
+        old_status="",
+        new_status=Order.STATUS_ORDER_PLACED,
+        comment="Order Placed",
     )
 
     return order
+
+
+def handle_order_status_change(
+    order: Order, old_status: str, new_status: str, changed_by=None, comment: str = None
+):
+    if old_status == new_status:
+        return
+
+    from logistics.models import YdmLogisticsSetting
+
+    # 1. Create the OrderChangeLog
+    OrderChangeLog.objects.create(
+        order=order,
+        user=changed_by,
+        old_status=old_status,
+        new_status=new_status,
+        comment=comment,
+    )
+
+    # 2. if order status is change to cancelled status then add the cancellation charge from YdmLogisticsSetting
+    if new_status == Order.STATUS_CANCELLED:
+        setting = YdmLogisticsSetting.load()
+        order.ydm_cancelled_charge = setting.cancelled_charge
+        order.save(update_fields=["ydm_cancelled_charge"])
+
+    # 3. and if order is change from cancelled to other status then remove the cancellation charge
+    elif old_status == Order.STATUS_CANCELLED:
+        order.ydm_cancelled_charge = None
+        order.save(update_fields=["ydm_cancelled_charge"])
 
 
 @transaction.atomic
@@ -95,15 +126,13 @@ def update_order_status(
     new_status: str,
     changed_by=None,
     webhook_url: str = None,
+    comment: str = None,
 ) -> Order:
-    order.status = new_status
-    order.save()
-
-    OrderStatusHistory.objects.create(
-        order=order,
-        status=new_status,
-        changed_by=changed_by,
-    )
+    old_status = order.status
+    if old_status != new_status:
+        order.status = new_status
+        order.save(update_fields=["status", "updated_at"])
+        handle_order_status_change(order, old_status, new_status, changed_by, comment)
 
     # Fire webhook after the transaction commits so the DB state is consistent
     from logistics.services.webhook_service import fire_status_change_webhook

@@ -23,7 +23,6 @@ class CustomUser(AbstractUser):
         db_index=True,
     )
 
-
     class Meta:
         verbose_name = "User"
         verbose_name_plural = "Users"
