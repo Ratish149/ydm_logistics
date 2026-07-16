@@ -31,7 +31,6 @@ class OrderCommentSerializer(serializers.ModelSerializer):
             "id",
             "commented_by",
             "commented_by_name",
-            "comment_type",
             "message",
             "created_at",
         ]
@@ -76,6 +75,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "delivery_attempts",
             "assigned_rider",
             "assigned_rider_name",
+            "is_rider_verified",
             "created_at",
             "updated_at",
             "change_logs",

@@ -538,10 +538,23 @@ class RiderOrderStatusUpdateView(APIView):
                 update_fields=["ydm_delivery_charge", "delivered_at", "updated_at"]
             )
 
+        # Resolve webhook URL from the order owner's active API keys
+        from account.models import APIKey
+
+        api_key_obj = (
+            APIKey.objects
+            .filter(user=order.user, is_active=True)
+            .exclude(webhook_url="")
+            .exclude(webhook_url__isnull=True)
+            .first()
+        )
+        webhook_url = api_key_obj.webhook_url if api_key_obj else None
+
         update_order_status(
             order,
             new_status_value,
             changed_by=user,
+            webhook_url=webhook_url,
             comment=comment or None,
         )
 

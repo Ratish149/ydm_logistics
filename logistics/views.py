@@ -11,6 +11,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from account.authentication import APIKeyAuthentication
 from account.permissions import HasValidAPIKey
 from logistics.filters import OrderFilter
+from logistics.models import Order
 from logistics.selectors import order_selector
 from logistics.serializers import (
     OrderCommentSerializer,
@@ -18,12 +19,14 @@ from logistics.serializers import (
     OrderDetailSerializer,
     OrderStatusUpdateSerializer,
 )
+from ydm.utils.pagination import CustomPagination
 
 
 class OrderListCreateAPI(ListCreateAPIView):
     authentication_classes = [JWTAuthentication, APIKeyAuthentication]
     permission_classes = [HasValidAPIKey]
     filterset_class = OrderFilter
+    pagination_class = CustomPagination
 
     def _resolve_target_user(self):
         """
@@ -67,7 +70,19 @@ class OrderDetailAPI(RetrieveUpdateDestroyAPIView):
     lookup_url_kwarg = "tracking_number"
 
     def get_queryset(self):
-        return order_selector.get_orders_for_client(self.request.user)
+        user = self.request.user
+        if (
+            user
+            and not user.is_anonymous
+            and getattr(user, "role", None) == "YDM_Rider"
+        ):
+            return (
+                Order.objects
+                .filter(assigned_rider=user)
+                .select_related("user", "assigned_rider")
+                .prefetch_related("change_logs")
+            )
+        return order_selector.get_orders_for_client(user)
 
 
 class OrderStatusUpdateAPI(APIView):
@@ -220,7 +235,6 @@ class OrderCommentListCreateAPI(APIView):
                 order=order,
                 commented_by=request.user,
                 message=serializer.validated_data["message"],
-                comment_type=serializer.validated_data.get("comment_type", "GENERAL"),
             )
             response_serializer = OrderCommentSerializer(comment)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -233,7 +247,6 @@ class OrderCommentListCreateAPI(APIView):
 # authenticated user so they are intentionally excluded from the template.
 # ---------------------------------------------------------------------------
 _TEMPLATE_COLUMNS = [
-    "external_order_code",
     "recipient_name",
     "recipient_phone",
     "recipient_email",
@@ -244,12 +257,10 @@ _TEMPLATE_COLUMNS = [
     "delivery_charge",
     "payment_type",
     "product",
-    "special_instructions",
     "remarks",
 ]
 
 _SAMPLE_ROW = [
-    "ORD-001",
     "John Doe",
     "9800000000",
     "john@example.com",
@@ -259,8 +270,7 @@ _SAMPLE_ROW = [
     "500.00",
     "100.00",
     "COD",
-    "",
-    "Handle with care",
+    "product1-1,product2-2,product3-5",
     "Sample order",
 ]
 
@@ -273,8 +283,8 @@ class OrderTemplateDownloadAPI(APIView):
     because they are automatically derived from the authenticated user.
     """
 
-    authentication_classes = [JWTAuthentication, APIKeyAuthentication]
-    permission_classes = [HasValidAPIKey]
+    authentication_classes = []
+    permission_classes = []
 
     def get(self, request):
         import openpyxl
@@ -372,6 +382,22 @@ class OrderImportAPI(APIView):
         from logistics.services.order_service import create_order
 
         user = request.user
+        if not user or user.is_anonymous:
+            user_id = request.query_params.get("user_id") or request.data.get("user_id")
+            if user_id:
+                from django.contrib.auth import get_user_model
+
+                User = get_user_model()
+                user = User.objects.filter(id=user_id).first()
+
+        if not user or user.is_anonymous:
+            return Response(
+                {
+                    "detail": "Authentication is required to import orders. Please login or provide a valid 'user_id'."
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
         created_count = 0
         row_errors = []
 
@@ -400,6 +426,27 @@ class OrderImportAPI(APIView):
                 })
                 continue
 
+            # Parse and structure product field if present
+            product_val = cell("product")
+            product_data = None
+            if product_val:
+                items = []
+                for part in product_val.split(","):
+                    part = part.strip()
+                    if not part:
+                        continue
+                    if "-" in part:
+                        subparts = part.rsplit("-", 1)
+                        name = subparts[0].strip()
+                        try:
+                            qty = int(subparts[1].strip())
+                        except ValueError:
+                            qty = 1
+                        items.append({"name": name, "quantity": qty})
+                    else:
+                        items.append({"name": part, "quantity": 1})
+                product_data = items
+
             # Safely coerce numeric columns
             def decimal_or_zero(col_name):
                 val = cell(col_name)
@@ -417,11 +464,10 @@ class OrderImportAPI(APIView):
                     recipient_email=cell("recipient_email"),
                     recipient_city=cell("recipient_city"),
                     recipient_district=cell("recipient_district"),
-                    external_order_code=cell("external_order_code"),
                     cod_amount=decimal_or_zero("cod_amount"),
                     delivery_charge=decimal_or_zero("delivery_charge"),
                     payment_type=cell("payment_type") or "COD",
-                    special_instructions=cell("special_instructions"),
+                    product=product_data,
                     remarks=cell("remarks"),
                 )
                 created_count += 1
@@ -434,3 +480,62 @@ class OrderImportAPI(APIView):
             if created_count
             else status.HTTP_400_BAD_REQUEST,
         )
+
+
+class OrderExportAPI(APIView):
+    """
+    GET/POST  /api/orders/export/
+    Delegates spreadsheet generation to export_orders_to_excel service.
+    """
+
+    authentication_classes = [JWTAuthentication, APIKeyAuthentication]
+    permission_classes = [HasValidAPIKey]
+
+    def _resolve_target_user(self):
+        request = self.request
+        if request.user.role == "ydm":
+            user_id = request.query_params.get("user_id") or request.data.get("user_id")
+            if user_id:
+                return user_id
+            return None
+        return request.user
+
+    def get(self, request):
+        return self._export_orders(request)
+
+    def post(self, request):
+        return self._export_orders(request)
+
+    def _export_orders(self, request):
+        from logistics.services import export_orders_to_excel
+
+        target_user_id = self._resolve_target_user()
+        order_ids_input = request.data.get("order_ids") or request.query_params.get(
+            "order_ids"
+        )
+
+        # Compile filter parameters from request data and query params
+        filter_params = request.query_params.copy()
+        for key, val in request.data.items():
+            if key != "order_ids" and val is not None:
+                filter_params[key] = val
+
+        try:
+            excel_buffer = export_orders_to_excel(
+                user=request.user,
+                target_user_id=target_user_id,
+                order_ids_input=order_ids_input,
+                filter_params=filter_params,
+            )
+        except ValueError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        response = HttpResponse(
+            excel_buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="orders_export.xlsx"'
+        return response

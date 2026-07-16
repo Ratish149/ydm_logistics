@@ -66,12 +66,16 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:8000",
-    "https://garage-colleague-oxygen-see.trycloudflare.com",
+    "http://192.168.1.75:3000",
+    "https://medications-scenes-looking-comparable.trycloudflare.com",
+    "https://packard-pound-heel-correct.trycloudflare.com",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:8000",
-    "https://garage-colleague-oxygen-see.trycloudflare.com",
+    "http://192.168.1.75:3000",
+    "https://medications-scenes-looking-comparable.trycloudflare.com",
+    "https://packard-pound-heel-correct.trycloudflare.com",
 ]
 
 ROOT_URLCONF = "ydm.urls"

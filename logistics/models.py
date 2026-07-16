@@ -142,20 +142,6 @@ class Order(models.Model):
 
 
 class OrderComment(models.Model):
-    COMMENT_TYPE_GENERAL = "GENERAL"
-    COMMENT_TYPE_FAILURE = "FAILURE"
-    COMMENT_TYPE_CANCELLATION = "CANCELLATION"
-    COMMENT_TYPE_HOLD = "HOLD"
-    COMMENT_TYPE_RESCHEDULE = "RESCHEDULE"
-
-    COMMENT_TYPE_CHOICES = [
-        (COMMENT_TYPE_GENERAL, "General"),
-        (COMMENT_TYPE_FAILURE, "Failure Reason"),
-        (COMMENT_TYPE_CANCELLATION, "Cancellation Reason"),
-        (COMMENT_TYPE_HOLD, "Hold Reason"),
-        (COMMENT_TYPE_RESCHEDULE, "Reschedule Reason"),
-    ]
-
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="comments")
     commented_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -164,26 +150,18 @@ class OrderComment(models.Model):
         related_name="order_comments",
         db_index=True,
     )
-    comment_type = models.CharField(
-        max_length=20,
-        choices=COMMENT_TYPE_CHOICES,
-        default=COMMENT_TYPE_GENERAL,
-        db_index=True,
-    )
     message = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["order", "comment_type"]),
+            models.Index(fields=["order"]),
             models.Index(fields=["order", "created_at"]),
         ]
 
     def __str__(self):
-        return (
-            f"{self.order.tracking_number} - {self.comment_type} by {self.commented_by}"
-        )
+        return f"{self.order.tracking_number} - by {self.commented_by}"
 
 
 class OrderChangeLog(models.Model):
@@ -193,7 +171,7 @@ class OrderChangeLog(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True
     )
-    old_status = models.CharField(max_length=255)
+    old_status = models.CharField(max_length=255, null=True, blank=True)
     new_status = models.CharField(max_length=255)
     comment = models.TextField(null=True, blank=True)
     changed_at = models.DateTimeField(auto_now_add=True)

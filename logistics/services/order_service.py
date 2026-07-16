@@ -41,12 +41,23 @@ def create_order(
 ) -> Order:
     # Default sender details from the authenticated user (API key owner)
     if not sender_name:
-        full_name = f"{user.first_name} {user.last_name}".strip()
-        sender_name = full_name or user.username
+        if user and not user.is_anonymous:
+            full_name = f"{user.first_name} {user.last_name}".strip()
+            sender_name = full_name or user.username
+        else:
+            sender_name = "Anonymous"
+    if not sender_phone:
+        sender_phone = (
+            getattr(user, "phone_number", None)
+            if user and not user.is_anonymous
+            else None
+        )
     if not sender_address:
-        sender_address = getattr(user, "address", None)
+        sender_address = (
+            getattr(user, "address", None) if user and not user.is_anonymous else None
+        )
     if not sender_email:
-        sender_email = user.email or None
+        sender_email = (user.email or None) if user and not user.is_anonymous else None
 
     # Generate unique tracking number
     tracking_number = generate_tracking_number()
@@ -129,17 +140,30 @@ def update_order_status(
     comment: str = None,
 ) -> Order:
     old_status = order.status
+    print(
+        f"[YDM Status Change] Order {order.tracking_number}: '{old_status}' -> '{new_status}' (changed_by: {changed_by}, comment: {comment})"
+    )
     if old_status != new_status:
         order.status = new_status
         order.save(update_fields=["status", "updated_at"])
         handle_order_status_change(order, old_status, new_status, changed_by, comment)
+        print(
+            f"[YDM Status Change] Saved status for {order.tracking_number} successfully."
+        )
 
     # Fire webhook after the transaction commits so the DB state is consistent
     from logistics.services.webhook_service import fire_status_change_webhook
 
-    transaction.on_commit(
-        lambda: fire_status_change_webhook(order, new_status, webhook_url)
-    )
+    def on_commit_callback():
+        print(
+            f"[YDM Webhook] Transaction committed. Firing webhook to '{webhook_url}' for order {order.tracking_number} (status: {new_status})"
+        )
+        fire_status_change_webhook(order, new_status, webhook_url)
+        print(
+            f"[YDM Webhook] Webhook invocation completed for order {order.tracking_number}."
+        )
+
+    transaction.on_commit(on_commit_callback)
 
     return order
 
@@ -149,11 +173,9 @@ def create_order_comment(
     order: Order,
     commented_by,
     message: str,
-    comment_type: str = OrderComment.COMMENT_TYPE_GENERAL,
 ) -> OrderComment:
     return OrderComment.objects.create(
         order=order,
         commented_by=commented_by,
-        comment_type=comment_type,
         message=message,
     )

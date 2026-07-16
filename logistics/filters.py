@@ -17,10 +17,10 @@ class OrderFilter(django_filters.FilterSet):
     recipient_district = django_filters.CharFilter(
         field_name="recipient_district", lookup_expr="iexact"
     )
-    created_after = django_filters.DateTimeFilter(
+    start_date = django_filters.DateTimeFilter(
         field_name="created_at", lookup_expr="gte"
     )
-    created_before = django_filters.DateTimeFilter(
+    end_date = django_filters.DateTimeFilter(
         field_name="created_at", lookup_expr="lte"
     )
 

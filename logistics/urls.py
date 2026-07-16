@@ -3,6 +3,7 @@ from django.urls import path
 from logistics.views import (
     OrderCommentListCreateAPI,
     OrderDetailAPI,
+    OrderExportAPI,
     OrderImportAPI,
     OrderListCreateAPI,
     OrderStatusUpdateAPI,
@@ -18,6 +19,7 @@ urlpatterns = [
         name="order-template-download",
     ),
     path("orders/import/", OrderImportAPI.as_view(), name="order-import"),
+    path("orders/export/", OrderExportAPI.as_view(), name="order-export"),
     path(
         "orders/<str:tracking_number>/",
         OrderDetailAPI.as_view(),

@@ -44,8 +44,8 @@ class OrderAdmin(ModelAdmin):
 
 @admin.register(OrderComment)
 class OrderCommentAdmin(ModelAdmin):
-    list_display = ("order", "commented_by", "comment_type", "created_at")
-    list_filter = ("comment_type", "created_at")
+    list_display = ("order", "commented_by", "created_at")
+    list_filter = ("created_at",)
     search_fields = ("order__tracking_number", "message")
     raw_id_fields = ("order", "commented_by")
 

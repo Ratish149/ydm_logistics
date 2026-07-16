@@ -34,6 +34,6 @@ def get_order_by_tracking(user, tracking_number: str) -> Order | None:
     return (
         Order.objects
         .filter(user=user, tracking_number=tracking_number)
-        .prefetch_related("status_history")
+        .prefetch_related("change_logs")
         .first()
     )

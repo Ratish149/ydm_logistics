@@ -51,17 +51,15 @@ def get_rider_commission_data(rider: CustomUser) -> dict:
         amount = float(order.cod_amount)
         commission = calculate_order_commission(amount, rates)
         total_commission_earned += commission
-        orders_data.append(
-            {
-                "order_id": order.id,
-                "tracking_number": order.tracking_number,
-                "recipient_name": order.recipient_name,
-                "cod_amount": amount,
-                "status": order.status,
-                "delivery_date": order.delivered_at,
-                "commission": commission,
-            }
-        )
+        orders_data.append({
+            "order_id": order.id,
+            "tracking_number": order.tracking_number,
+            "recipient_name": order.recipient_name,
+            "cod_amount": amount,
+            "status": order.status,
+            "delivery_date": order.delivered_at,
+            "commission": commission,
+        })
 
     payouts = RiderPayout.objects.filter(rider=rider)
     total_payout = payouts.aggregate(total=Sum("amount"))["total"] or 0.0
@@ -183,9 +181,10 @@ def get_rider_orders_queryset(rider: CustomUser) -> QuerySet[Order]:
     Returns pre-optimized Order queryset for the rider.
     """
     return (
-        Order.objects.filter(assigned_rider=rider)
+        Order.objects
+        .filter(assigned_rider=rider)
         .select_related("user", "assigned_rider")
-        .prefetch_related("status_history", "comments")
+        .prefetch_related("change_logs", "comments")
         .order_by("-id")
     )
 
@@ -217,7 +216,8 @@ def get_rider_daily_stats(rider: CustomUser, start_date: date, end_date: date) -
         returned_logs = returned_logs.filter(changed_at__date__lte=end_date)
 
     delivered_counts = (
-        delivered_logs.annotate(date=TruncDate("changed_at"))
+        delivered_logs
+        .annotate(date=TruncDate("changed_at"))
         .values("date")
         .annotate(count=Count("order_id", distinct=True))
         .values_list("date", "count")
@@ -225,7 +225,8 @@ def get_rider_daily_stats(rider: CustomUser, start_date: date, end_date: date) -
     delivered_map = {row[0]: row[1] for row in delivered_counts}
 
     returned_counts = (
-        returned_logs.annotate(date=TruncDate("changed_at"))
+        returned_logs
+        .annotate(date=TruncDate("changed_at"))
         .values("date")
         .annotate(count=Count("order_id", distinct=True))
         .values_list("date", "count")
@@ -238,12 +239,10 @@ def get_rider_daily_stats(rider: CustomUser, start_date: date, end_date: date) -
 
     results = []
     for d in all_dates:
-        results.append(
-            {
-                "date": d.strftime("%Y-%m-%d") if d else None,
-                "delivered_count": delivered_map.get(d, 0),
-                "returned_count": returned_map.get(d, 0),
-            }
-        )
+        results.append({
+            "date": d.strftime("%Y-%m-%d") if d else None,
+            "delivered_count": delivered_map.get(d, 0),
+            "returned_count": returned_map.get(d, 0),
+        })
 
     return results
