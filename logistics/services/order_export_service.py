@@ -52,7 +52,6 @@ def export_orders_to_excel(
     ws.title = "Orders"
 
     columns = [
-        "ID",
         "Tracking Number",
         "External Order Code",
         "Sender Name",
@@ -83,42 +82,41 @@ def export_orders_to_excel(
         ws.column_dimensions[cell.column_letter].width = max(len(col_name) + 4, 16)
 
     for row_idx, order in enumerate(queryset, start=2):
-        ws.cell(row=row_idx, column=1, value=order.id)
-        ws.cell(row=row_idx, column=2, value=order.tracking_number)
-        ws.cell(row=row_idx, column=3, value=order.external_order_code or "")
-        ws.cell(row=row_idx, column=4, value=order.sender_name or "")
-        ws.cell(row=row_idx, column=5, value=order.sender_phone or "")
-        ws.cell(row=row_idx, column=6, value=order.recipient_name)
-        ws.cell(row=row_idx, column=7, value=order.recipient_phone)
-        ws.cell(row=row_idx, column=8, value=order.recipient_email or "")
-        ws.cell(row=row_idx, column=9, value=order.recipient_address)
-        ws.cell(row=row_idx, column=10, value=order.recipient_city or "")
-        ws.cell(row=row_idx, column=11, value=order.recipient_district or "")
-        ws.cell(row=row_idx, column=12, value=float(order.cod_amount))
-        ws.cell(row=row_idx, column=13, value=float(order.delivery_charge))
+        ws.cell(row=row_idx, column=1, value=order.tracking_number)
+        ws.cell(row=row_idx, column=2, value=order.external_order_code or "")
+        ws.cell(row=row_idx, column=3, value=order.sender_name or "")
+        ws.cell(row=row_idx, column=4, value=order.sender_phone or "")
+        ws.cell(row=row_idx, column=5, value=order.recipient_name)
+        ws.cell(row=row_idx, column=6, value=order.recipient_phone)
+        ws.cell(row=row_idx, column=7, value=order.recipient_email or "")
+        ws.cell(row=row_idx, column=8, value=order.recipient_address)
+        ws.cell(row=row_idx, column=9, value=order.recipient_city or "")
+        ws.cell(row=row_idx, column=10, value=order.recipient_district or "")
+        ws.cell(row=row_idx, column=11, value=float(order.cod_amount))
+        ws.cell(row=row_idx, column=12, value=float(order.delivery_charge))
         ws.cell(
             row=row_idx,
-            column=14,
+            column=13,
             value=float(order.ydm_delivery_charge)
             if order.ydm_delivery_charge is not None
             else "",
         )
         ws.cell(
             row=row_idx,
-            column=15,
+            column=14,
             value=float(order.ydm_cancelled_charge)
             if order.ydm_cancelled_charge is not None
             else "",
         )
-        ws.cell(row=row_idx, column=16, value=order.payment_type)
-        ws.cell(row=row_idx, column=17, value=order.get_status_display())
+        ws.cell(row=row_idx, column=15, value=order.payment_type)
+        ws.cell(row=row_idx, column=16, value=order.get_status_display())
         ws.cell(
-            row=row_idx, column=18, value="Yes" if order.is_rider_verified else "No"
+            row=row_idx, column=17, value="Yes" if order.is_rider_verified else "No"
         )
-        ws.cell(row=row_idx, column=19, value=order.delivery_location_type or "")
+        ws.cell(row=row_idx, column=18, value=order.delivery_location_type or "")
         ws.cell(
             row=row_idx,
-            column=20,
+            column=19,
             value=order.created_at.strftime("%Y-%m-%d %H:%M:%S")
             if order.created_at
             else "",

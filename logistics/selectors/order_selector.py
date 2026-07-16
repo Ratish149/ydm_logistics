@@ -27,13 +27,11 @@ def get_orders_for_client(user) -> QuerySet[Order]:
     return qs.filter(user=user)
 
 
-def get_order_by_tracking(user, tracking_number: str) -> Order | None:
+def get_order_by_tracking(tracking_number: str, user=None) -> Order | None:
     """
     Returns an order by tracking number, scoped to the user.
     """
-    return (
-        Order.objects
-        .filter(user=user, tracking_number=tracking_number)
-        .prefetch_related("change_logs")
-        .first()
-    )
+    qs = Order.objects.filter(tracking_number=tracking_number)
+    if user is not None:
+        qs = qs.filter(user=user)
+    return qs.prefetch_related("change_logs").first()

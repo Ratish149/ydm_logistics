@@ -1,6 +1,7 @@
 from django.urls import path
 
 from logistics.views import (
+    OrderAssignRiderAPI,
     OrderCommentListCreateAPI,
     OrderDetailAPI,
     OrderExportAPI,
@@ -20,6 +21,11 @@ urlpatterns = [
     ),
     path("orders/import/", OrderImportAPI.as_view(), name="order-import"),
     path("orders/export/", OrderExportAPI.as_view(), name="order-export"),
+    path(
+        "orders/assign-rider/",
+        OrderAssignRiderAPI.as_view(),
+        name="order-assign-rider",
+    ),
     path(
         "orders/<str:tracking_number>/",
         OrderDetailAPI.as_view(),

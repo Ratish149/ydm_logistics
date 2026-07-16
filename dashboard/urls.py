@@ -5,6 +5,7 @@ from dashboard.views import (
     OrderDailyDeliveredStatsAPI,
     OrderDailyPlacedStatsAPI,
     OrderStatusDashboardAPI,
+    PendingCODApiView,
     UserStatementAPIView,
 )
 
@@ -30,4 +31,5 @@ urlpatterns = [
         UserStatementAPIView.as_view(),
         name="user-statement",
     ),
+    path("pending-cod/", PendingCODApiView.as_view(), name="pending-cod"),
 ]

@@ -42,6 +42,11 @@ def get_rider_commission_data(rider: CustomUser) -> dict:
         status=Order.STATUS_DELIVERED,
     )
 
+    cancelled_orders_count = Order.objects.filter(
+        assigned_rider=rider,
+        status=Order.STATUS_CANCELLED,
+    ).count()
+
     orders_data = []
     total_commission_earned = 0.0
 
@@ -80,6 +85,7 @@ def get_rider_commission_data(rider: CustomUser) -> dict:
     return {
         "summary": {
             "total_delivered_orders": len(orders_data),
+            "total_cancelled_orders": cancelled_orders_count,
             "total_commission_earned": total_commission_earned,
             "total_commission_paid": total_payout,
             "remaining_balance": remaining_balance,

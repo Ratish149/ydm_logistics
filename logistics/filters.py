@@ -20,8 +20,9 @@ class OrderFilter(django_filters.FilterSet):
     start_date = django_filters.DateTimeFilter(
         field_name="created_at", lookup_expr="gte"
     )
-    end_date = django_filters.DateTimeFilter(
-        field_name="created_at", lookup_expr="lte"
+    end_date = django_filters.DateTimeFilter(field_name="created_at", lookup_expr="lte")
+    delivery_location_type = django_filters.CharFilter(
+        field_name="delivery_location_type", lookup_expr="iexact"
     )
 
     class Meta:
@@ -33,4 +34,5 @@ class OrderFilter(django_filters.FilterSet):
             "recipient_city",
             "recipient_district",
             "created_at",
+            "delivery_location_type",
         ]

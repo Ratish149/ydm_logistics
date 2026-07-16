@@ -1,7 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 
-from logistics.models import Order, OrderChangeLog, OrderComment
+from logistics.models import Order, OrderChangeLog, OrderComment, YdmLogisticsSetting
 
 
 class OrderChangeLogInline(TabularInline):
@@ -56,3 +56,15 @@ class OrderChangeLogAdmin(ModelAdmin):
     list_filter = ("old_status", "new_status", "changed_at")
     search_fields = ("order__tracking_number", "comment")
     raw_id_fields = ("order", "user")
+
+
+
+
+
+@admin.register(YdmLogisticsSetting)
+class YdmLogisticsSettingAdmin(ModelAdmin):
+    list_display = (
+        "inside_ringroad_charge",
+        "outside_ringroad_charge",
+        "cancelled_charge",
+    )

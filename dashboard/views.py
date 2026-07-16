@@ -10,6 +10,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from account.authentication import APIKeyAuthentication
 from dashboard.selectors import (
     calculate_dashboard_pending_cod,
+    calculate_just_pending_cod,
     generate_order_tracking_statement_optimized,
     get_complete_dashboard_stats,
     get_daily_delivered_order_stats,
@@ -276,3 +277,19 @@ class UserStatementAPIView(generics.ListAPIView):
             },
             "statement": serializer.data,
         })
+
+
+class PendingCODApiView(APIView):
+    authentication_classes = [JWTAuthentication, APIKeyAuthentication]
+    permission_classes = []
+
+    def get(self, request, *args, **kwargs):
+        # Fall back to a target_user_id query param if provided, otherwise use current user
+        user_id = request.query_params.get("user_id")
+
+        pending_cod_amount = calculate_just_pending_cod(user_id)
+
+        return Response(
+            {"user_id": int(user_id), "pending_cod_amount": pending_cod_amount},
+            status=status.HTTP_200_OK,
+        )

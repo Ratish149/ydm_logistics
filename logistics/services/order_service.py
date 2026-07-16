@@ -179,3 +179,31 @@ def create_order_comment(
         commented_by=commented_by,
         message=message,
     )
+
+
+@transaction.atomic
+def assign_rider_to_orders(rider_id: int, order_ids: list, changed_by=None) -> list[Order]:
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    try:
+        rider = User.objects.get(id=rider_id, role="YDM_Rider")
+    except User.DoesNotExist:
+        raise ValueError("Rider not found or is not a YDM Rider.")
+
+    orders = Order.objects.filter(id__in=order_ids)
+    for order in orders:
+        old_status = order.status
+        order.assigned_rider = rider
+        order.status = Order.STATUS_READY_FOR_DISPATCH
+        order.save(update_fields=["assigned_rider", "status", "updated_at"])
+
+        # Create history change log
+        OrderChangeLog.objects.create(
+            order=order,
+            user=changed_by,
+            old_status=old_status,
+            new_status=Order.STATUS_READY_FOR_DISPATCH,
+            comment=f"Assigned rider {rider.get_full_name() or rider.username}",
+        )
+    return list(orders)

@@ -57,14 +57,14 @@ def get_order_dashboard_stats(user=None, target_user_id=None) -> dict:
                 "nos": 0,
                 "amount": 0.0,
             },
-        ],
-        "order_dispatched": [
             {
                 "status": "Ready for Dispatch",
                 "key": Order.STATUS_READY_FOR_DISPATCH,
                 "nos": 0,
                 "amount": 0.0,
             },
+        ],
+        "order_dispatched": [
             {
                 "status": "Order Dispatched",
                 "key": Order.STATUS_ORDER_DISPATCHED,
@@ -227,6 +227,10 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
         )["total"]
         or 0.0
     )
+    print(f"delivered_stats: {delivered_stats}")
+    print(f"valid_charge: {valid_charge}")
+    print(f"cancelled_charge: {cancelled_charge}")
+    print(f"approved_paid: {approved_paid}")
     pending_cod_amount = max(
         0.0,
         float(delivered_stats["amount"])
@@ -234,6 +238,7 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
         - float(cancelled_charge)
         - float(approved_paid),
     )
+    print(f"pending_cod_amount: {pending_cod_amount}")
 
     # 4. Last COD Payment (from approved invoices)
     last_invoice = (
@@ -676,3 +681,54 @@ def generate_order_tracking_statement_optimized(
         curr += timedelta(days=1)
 
     return statement_data
+
+
+def calculate_just_pending_cod(user_id) -> float:
+    """
+    Returns only the net pending COD amount for a given user.
+    Optimized to run in exactly two database queries (one for Orders, one for Invoices).
+    """
+    # 1. Gather all order calculations in a single query pass
+    order_metrics = Order.objects.filter(user_id=user_id).aggregate(
+        delivered_cod=Coalesce(
+            Sum("cod_amount", filter=models.Q(status=Order.STATUS_DELIVERED)),
+            0.0,
+            output_field=models.DecimalField(),
+        ),
+        delivered_charges=Coalesce(
+            Sum("ydm_delivery_charge", filter=models.Q(status=Order.STATUS_DELIVERED)),
+            0.0,
+            output_field=models.DecimalField(),
+        ),
+        cancelled_charges=Coalesce(
+            Sum(
+                "ydm_cancelled_charge",
+                filter=models.Q(
+                    status__in=[
+                        Order.STATUS_CANCELLED,
+                        Order.STATUS_RETURNING_TO_VENDOR,
+                        Order.STATUS_RETURNED_TO_VENDOR,
+                    ]
+                ),
+            ),
+            0.0,
+            output_field=models.DecimalField(),
+        ),
+    )
+
+    # 2. Sum the approved payments
+    approved_paid = Invoice.objects.filter(user_id=user_id, is_approved=True).aggregate(
+        total=Coalesce(Sum("paid_amount"), 0.0, output_field=models.DecimalField())
+    )["total"]
+
+    # 3. Apply the financial formula
+    total_charges = (
+        order_metrics["delivered_charges"] + order_metrics["cancelled_charges"]
+    )
+    pending_cod = (
+        float(order_metrics["delivered_cod"])
+        - float(total_charges)
+        - float(approved_paid)
+    )
+
+    return max(0.0, pending_cod)

@@ -29,6 +29,17 @@ class InvoiceListCreateView(generics.ListCreateAPIView):
         user = self.request.user
         if not user or not user.is_authenticated:
             raise serializers.ValidationError("User authentication is required")
+
+        user_id = self.request.query_params.get("user_id")
+        if not user_id:
+            try:
+                user_id = self.request.data.get("user_id")
+            except Exception:
+                pass
+
+        if user_id:
+            return self.queryset.filter(user_id=user_id)
+
         if user.role == "vendor":
             return self.queryset.filter(user=user)
         if user.role == "ydm":
@@ -45,8 +56,24 @@ class InvoiceListCreateView(generics.ListCreateAPIView):
                 "User is not authorized to create invoices"
             )
 
+        user_id = self.request.data.get("user_id") or self.request.query_params.get(
+            "user_id"
+        )
+        if user_id:
+            from django.contrib.auth import get_user_model
+
+            User = get_user_model()
+            target_user = User.objects.filter(id=user_id).first()
+            if not target_user:
+                raise serializers.ValidationError("Target user not found")
+        else:
+            target_user = serializer.validated_data.get("user") or user
+
+        validated_data = serializer.validated_data.copy()
+        validated_data["user"] = target_user
+
         # Use create_invoice service
-        create_invoice(created_by=user, **serializer.validated_data)
+        create_invoice(created_by=user, **validated_data)
 
 
 class InvoiceRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):

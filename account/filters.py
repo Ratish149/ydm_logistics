@@ -10,7 +10,15 @@ class UserFilter(django_filters.FilterSet):
     last_name = django_filters.CharFilter(lookup_expr="icontains")
     phone_number = django_filters.CharFilter(lookup_expr="icontains")
     is_active = django_filters.BooleanFilter()
+    role = django_filters.CharFilter(lookup_expr="icontains")
 
     class Meta:
         model = User
-        fields = ["email", "first_name", "last_name", "phone_number", "is_active"]
+        fields = [
+            "email",
+            "first_name",
+            "last_name",
+            "phone_number",
+            "is_active",
+            "role",
+        ]

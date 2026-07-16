@@ -24,6 +24,9 @@ class OrderCommentSerializer(serializers.ModelSerializer):
     commented_by_name = serializers.CharField(
         source="commented_by.get_full_name", default="", read_only=True
     )
+    commented_by_role = serializers.CharField(
+        source="commented_by.role", default="", read_only=True
+    )
 
     class Meta:
         model = OrderComment
@@ -31,6 +34,7 @@ class OrderCommentSerializer(serializers.ModelSerializer):
             "id",
             "commented_by",
             "commented_by_name",
+            "commented_by_role",
             "message",
             "created_at",
         ]

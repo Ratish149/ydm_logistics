@@ -1,6 +1,7 @@
 import io
 
 from django.http import HttpResponse
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.parsers import MultiPartParser
@@ -25,6 +26,7 @@ from ydm.utils.pagination import CustomPagination
 class OrderListCreateAPI(ListCreateAPIView):
     authentication_classes = [JWTAuthentication, APIKeyAuthentication]
     permission_classes = [HasValidAPIKey]
+    filter_backends = [DjangoFilterBackend]
     filterset_class = OrderFilter
     pagination_class = CustomPagination
 
@@ -90,9 +92,7 @@ class OrderStatusUpdateAPI(APIView):
     permission_classes = [HasValidAPIKey]
 
     def post(self, request, tracking_number):
-        order = order_selector.get_order_by_tracking(
-            user=request.user, tracking_number=tracking_number
-        )
+        order = order_selector.get_order_by_tracking(tracking_number=tracking_number)
         if not order:
             return Response(
                 {"detail": "Order not found."}, status=status.HTTP_404_NOT_FOUND
@@ -206,9 +206,7 @@ class OrderCommentListCreateAPI(APIView):
     permission_classes = [HasValidAPIKey]
 
     def get(self, request, tracking_number):
-        order = order_selector.get_order_by_tracking(
-            user=request.user, tracking_number=tracking_number
-        )
+        order = order_selector.get_order_by_tracking(tracking_number=tracking_number)
         if not order:
             return Response(
                 {"detail": "Order not found."}, status=status.HTTP_404_NOT_FOUND
@@ -219,9 +217,7 @@ class OrderCommentListCreateAPI(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, tracking_number):
-        order = order_selector.get_order_by_tracking(
-            user=request.user, tracking_number=tracking_number
-        )
+        order = order_selector.get_order_by_tracking(tracking_number=tracking_number)
         if not order:
             return Response(
                 {"detail": "Order not found."}, status=status.HTTP_404_NOT_FOUND
@@ -254,7 +250,6 @@ _TEMPLATE_COLUMNS = [
     "recipient_city",
     "recipient_district",
     "cod_amount",
-    "delivery_charge",
     "payment_type",
     "product",
     "remarks",
@@ -268,7 +263,6 @@ _SAMPLE_ROW = [
     "Kathmandu",
     "Kathmandu",
     "500.00",
-    "100.00",
     "COD",
     "product1-1,product2-2,product3-5",
     "Sample order",
@@ -306,6 +300,22 @@ class OrderTemplateDownloadAPI(APIView):
         # Sample data row
         for col_idx, value in enumerate(_SAMPLE_ROW, start=1):
             ws.cell(row=2, column=col_idx, value=value)
+
+        # Dropdown validation for payment_type
+        from openpyxl.utils import get_column_letter
+        from openpyxl.worksheet.datavalidation import DataValidation
+
+        payment_type_idx = _TEMPLATE_COLUMNS.index("payment_type") + 1
+        col_letter = get_column_letter(payment_type_idx)
+
+        dv = DataValidation(type="list", formula1='"PREPAID,COD"', allow_blank=True)
+        dv.error = "Your entry is not in the list (PREPAID, COD)"
+        dv.errorTitle = "Invalid Entry"
+        dv.prompt = "Please select from the list: PREPAID, COD"
+        dv.promptTitle = "Payment Type"
+
+        ws.add_data_validation(dv)
+        dv.add(f"{col_letter}2:{col_letter}1000")
 
         buffer = io.BytesIO()
         wb.save(buffer)
@@ -539,3 +549,53 @@ class OrderExportAPI(APIView):
         )
         response["Content-Disposition"] = 'attachment; filename="orders_export.xlsx"'
         return response
+
+
+class OrderAssignRiderAPI(APIView):
+    """
+    POST  /api/orders/assign-rider/
+    Assigns a rider to multiple orders.
+    Expects request body:
+        {
+            "rider_id": <int>,
+            "order_ids": [<int>, <int>, ...]
+        }
+    """
+    authentication_classes = [JWTAuthentication, APIKeyAuthentication]
+    permission_classes = [HasValidAPIKey]
+
+    def post(self, request):
+        if request.user.role not in ["ydm", "YDM_Operator", "YDM_Logistics"]:
+            return Response(
+                {"detail": "You do not have permission to assign riders to orders."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        rider_id = request.data.get("rider_id")
+        order_ids = request.data.get("order_ids")
+
+        if not rider_id:
+            return Response(
+                {"detail": "rider_id is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not order_ids or not isinstance(order_ids, list):
+            return Response(
+                {"detail": "order_ids must be a non-empty list of integers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from logistics.services.order_service import assign_rider_to_orders
+
+        try:
+            assign_rider_to_orders(rider_id=rider_id, order_ids=order_ids, changed_by=request.user)
+        except ValueError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {"detail": f"Successfully assigned rider to {len(order_ids)} orders."},
+            status=status.HTTP_200_OK,
+        )

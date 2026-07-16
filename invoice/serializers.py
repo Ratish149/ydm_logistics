@@ -4,7 +4,13 @@ from account.serializers import UserListSerializer
 from invoice.models import Invoice, ReportInvoice
 
 
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+
 class InvoiceSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
     user_detail = UserListSerializer(source="user", read_only=True)
     created_by_detail = UserListSerializer(source="created_by", read_only=True)
     approved_by_detail = UserListSerializer(source="approved_by", read_only=True)
