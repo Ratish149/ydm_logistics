@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from django.db.models import Max, Min
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -18,8 +17,6 @@ from dashboard.selectors import (
     get_order_dashboard_stats,
 )
 from dashboard.serializers import UserStatementSerializer
-from invoice.models import Invoice
-from logistics.models import Order, OrderChangeLog
 from ydm.utils.pagination import CustomPagination
 
 
@@ -187,62 +184,10 @@ class UserStatementAPIView(generics.ListAPIView):
                     {"error": "Invalid date format. Use YYYY-MM-DD"}, status=400
                 )
         else:
-            # fallback: detect earliest and latest activity based on our model
-            earliest_order_created = Order.objects.filter(user_id=user_id).aggregate(
-                Min("created_at")
-            )["created_at__min"]
-
-            earliest_log_sent = OrderChangeLog.objects.filter(
-                order__user_id=user_id,
-                new_status=Order.STATUS_ORDER_PLACED,
-            ).aggregate(Min("changed_at"))["changed_at__min"]
-
-            earliest_delivery = OrderChangeLog.objects.filter(
-                order__user_id=user_id,
-                new_status=Order.STATUS_DELIVERED,
-            ).aggregate(Min("changed_at"))["changed_at__min"]
-
-            earliest_payment = Invoice.objects.filter(
-                user_id=user_id, is_approved=True
-            ).aggregate(Min("approved_at"))["approved_at__min"]
-
-            latest_activity = max(
-                filter(
-                    None,
-                    [
-                        OrderChangeLog.objects.filter(
-                            order__user_id=user_id,
-                        ).aggregate(Max("changed_at"))["changed_at__max"],
-                        Invoice.objects.filter(
-                            user_id=user_id, is_approved=True
-                        ).aggregate(Max("approved_at"))["approved_at__max"],
-                    ],
-                ),
-                default=timezone.now(),
-            )
-
-            start_date_val = min(
-                filter(
-                    None,
-                    [
-                        earliest_order_created,
-                        earliest_log_sent,
-                        earliest_delivery,
-                        earliest_payment,
-                    ],
-                ),
-                default=timezone.now(),
-            )
-            start_date = (
-                start_date_val.date()
-                if isinstance(start_date_val, datetime)
-                else start_date_val
-            )
-            end_date = (
-                latest_activity.date()
-                if isinstance(latest_activity, datetime)
-                else latest_activity
-            )
+            # Default: current calendar month (1st → today)
+            today = timezone.now().date()
+            start_date = today.replace(day=1)
+            end_date = today
 
         # 2. Dashboard summary
         dashboard_data = calculate_dashboard_pending_cod(user_id)

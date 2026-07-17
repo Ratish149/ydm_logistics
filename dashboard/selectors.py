@@ -227,10 +227,7 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
         )["total"]
         or 0.0
     )
-    print(f"delivered_stats: {delivered_stats}")
-    print(f"valid_charge: {valid_charge}")
-    print(f"cancelled_charge: {cancelled_charge}")
-    print(f"approved_paid: {approved_paid}")
+
     pending_cod_amount = max(
         0.0,
         float(delivered_stats["amount"])
@@ -238,7 +235,6 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
         - float(cancelled_charge)
         - float(approved_paid),
     )
-    print(f"pending_cod_amount: {pending_cod_amount}")
 
     # 4. Last COD Payment (from approved invoices)
     last_invoice = (
@@ -473,19 +469,19 @@ def calculate_dashboard_pending_cod(user_id) -> dict:
         ]
     )
 
-    delivered_amount = (
+    delivered_amount = float(
         delivered_orders.aggregate(total=Sum("cod_amount"))["total"] or 0.0
     )
     total_order = orders.count()
-    total_amount = orders.aggregate(total=Sum("cod_amount"))["total"] or 0.0
+    total_amount = float(orders.aggregate(total=Sum("cod_amount"))["total"] or 0.0)
 
     delivered_count = delivered_orders.count()
     cancelled_count = cancelled_orders.count()
 
-    valid_charge = (
+    valid_charge = float(
         delivered_orders.aggregate(total=Sum("ydm_delivery_charge"))["total"] or 0.0
     )
-    cancelled_charge = (
+    cancelled_charge = float(
         cancelled_orders.aggregate(total=Sum("ydm_cancelled_charge"))["total"] or 0.0
     )
     total_charge = valid_charge + cancelled_charge

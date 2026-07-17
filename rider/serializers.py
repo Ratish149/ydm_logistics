@@ -9,8 +9,8 @@ class RiderCommissionRateSerializer(serializers.ModelSerializer):
         model = RiderCommissionRate
         fields = [
             "id",
-            "order_min_amount",
-            "order_max_amount",
+            "order_min_count",
+            "order_max_count",
             "commission_amount",
         ]
 

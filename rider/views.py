@@ -277,7 +277,7 @@ class RiderOrdersListView(generics.ListAPIView):
 
 
 class RiderCommissionRateListCreateView(generics.ListCreateAPIView):
-    queryset = RiderCommissionRate.objects.all().order_by("order_min_amount")
+    queryset = RiderCommissionRate.objects.all().order_by("order_min_count")
     serializer_class = RiderCommissionRateSerializer
     permission_classes = [IsAuthenticated]
 

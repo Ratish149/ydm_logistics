@@ -17,7 +17,7 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
     add_fieldsets = UserAdmin.add_fieldsets + (
         ("Additional Info", {"fields": ("phone_number", "address", "role")}),
     )
-    list_display = UserAdmin.list_display + ("phone_number", "role")
+    list_display = UserAdmin.list_display + ("phone_number", "role", "id")
 
 
 @admin.register(APIKey)

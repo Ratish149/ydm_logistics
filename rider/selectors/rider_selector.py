@@ -14,8 +14,8 @@ def calculate_order_commission(amount: float, rates: list) -> float:
     """
     if rates:
         for rate in rates:
-            if rate.order_min_amount <= amount and (
-                rate.order_max_amount is None or amount <= rate.order_max_amount
+            if rate.order_min_count <= amount and (
+                rate.order_max_count is None or amount <= rate.order_max_count
             ):
                 return float(rate.commission_amount)
     else:
@@ -50,7 +50,7 @@ def get_rider_commission_data(rider: CustomUser) -> dict:
     orders_data = []
     total_commission_earned = 0.0
 
-    rates = list(RiderCommissionRate.objects.all().order_by("order_min_amount"))
+    rates = list(RiderCommissionRate.objects.all().order_by("order_min_count"))
 
     for order in delivered_orders:
         amount = float(order.cod_amount)
@@ -112,12 +112,12 @@ def get_rider_commission_stats(rider: CustomUser) -> dict:
     )
     num_orders = delivered_orders.count()
 
-    rates = list(RiderCommissionRate.objects.all().order_by("order_min_amount"))
+    rates = list(RiderCommissionRate.objects.all().order_by("order_min_count"))
     commission_per_order = 0.0
     if rates:
         for rate in rates:
-            if rate.order_min_amount <= num_orders and (
-                rate.order_max_amount is None or num_orders <= rate.order_max_amount
+            if rate.order_min_count <= num_orders and (
+                rate.order_max_count is None or num_orders <= rate.order_max_count
             ):
                 commission_per_order = float(rate.commission_amount)
                 break

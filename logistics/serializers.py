@@ -1,6 +1,16 @@
 from rest_framework import serializers
 
-from logistics.models import Order, OrderChangeLog, OrderComment
+from logistics.models import Order, OrderChangeLog, OrderComment, YdmLogisticsSetting
+
+
+class YdmLogisticsSettingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = YdmLogisticsSetting
+        fields = [
+            "inside_ringroad_charge",
+            "outside_ringroad_charge",
+            "cancelled_charge",
+        ]
 
 
 class OrderChangeLogSerializer(serializers.ModelSerializer):

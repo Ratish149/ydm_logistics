@@ -12,13 +12,14 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from account.authentication import APIKeyAuthentication
 from account.permissions import HasValidAPIKey
 from logistics.filters import OrderFilter
-from logistics.models import Order
+from logistics.models import Order, YdmLogisticsSetting
 from logistics.selectors import order_selector
 from logistics.serializers import (
     OrderCommentSerializer,
     OrderCreateSerializer,
     OrderDetailSerializer,
     OrderStatusUpdateSerializer,
+    YdmLogisticsSettingSerializer,
 )
 from ydm.utils.pagination import CustomPagination
 
@@ -561,6 +562,7 @@ class OrderAssignRiderAPI(APIView):
             "order_ids": [<int>, <int>, ...]
         }
     """
+
     authentication_classes = [JWTAuthentication, APIKeyAuthentication]
     permission_classes = [HasValidAPIKey]
 
@@ -588,7 +590,9 @@ class OrderAssignRiderAPI(APIView):
         from logistics.services.order_service import assign_rider_to_orders
 
         try:
-            assign_rider_to_orders(rider_id=rider_id, order_ids=order_ids, changed_by=request.user)
+            assign_rider_to_orders(
+                rider_id=rider_id, order_ids=order_ids, changed_by=request.user
+            )
         except ValueError as exc:
             return Response(
                 {"detail": str(exc)},
@@ -599,3 +603,34 @@ class OrderAssignRiderAPI(APIView):
             {"detail": f"Successfully assigned rider to {len(order_ids)} orders."},
             status=status.HTTP_200_OK,
         )
+
+
+class YdmLogisticsSettingAPI(APIView):
+    """
+    GET  /logistics/settings/  — retrieve current delivery charge settings.
+    PATCH /logistics/settings/ — update one or more charge values (admin only).
+    """
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = []
+
+    def get(self, request):
+        instance = YdmLogisticsSetting.load()
+        serializer = YdmLogisticsSettingSerializer(instance)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        if not (
+            request.user and request.user.is_authenticated and request.user.is_staff
+        ):
+            return Response(
+                {"detail": "Only admin users can update logistics settings."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        instance = YdmLogisticsSetting.load()
+        serializer = YdmLogisticsSettingSerializer(
+            instance, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)

@@ -10,6 +10,7 @@ from logistics.views import (
     OrderStatusUpdateAPI,
     OrderTemplateDownloadAPI,
     WebhookConfigAPI,
+    YdmLogisticsSettingAPI,
 )
 
 urlpatterns = [
@@ -42,4 +43,5 @@ urlpatterns = [
         name="order-comments",
     ),
     path("ydm/webhook/", WebhookConfigAPI.as_view(), name="webhook-config"),
+    path("settings/", YdmLogisticsSettingAPI.as_view(), name="logistics-settings"),
 ]

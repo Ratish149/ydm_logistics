@@ -6,8 +6,8 @@ from rider.models import RiderCommissionRate, RiderPayout
 
 @admin.register(RiderCommissionRate)
 class RiderCommissionRateAdmin(ModelAdmin):
-    list_display = ["id", "order_min_amount", "order_max_amount", "commission_amount"]
-    search_fields = ["order_min_amount", "order_max_amount"]
+    list_display = ["id", "order_min_count", "order_max_count", "commission_amount"]
+    search_fields = ["order_min_count", "order_max_count"]
     list_filter = ["commission_amount"]
 
 

@@ -3,20 +3,20 @@ from django.db import models
 
 
 class RiderCommissionRate(models.Model):
-    order_min_amount = models.DecimalField(max_digits=10, decimal_places=2)
-    order_max_amount = models.DecimalField(
+    order_min_count = models.DecimalField(max_digits=10, decimal_places=2)
+    order_max_count = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
     )
     commission_amount = models.DecimalField(max_digits=10, decimal_places=2)
 
     class Meta:
-        ordering = ["order_min_amount"]
+        ordering = ["order_min_count"]
 
     def __str__(self):
         max_str = (
-            f"{self.order_max_amount}" if self.order_max_amount is not None else "Above"
+            f"{self.order_max_count}" if self.order_max_count is not None else "Above"
         )
-        return f"Order Amount {self.order_min_amount} - {max_str} : Commission {self.commission_amount}"
+        return f"Order Count {self.order_min_count} - {max_str} : Commission {self.commission_amount}"
 
 
 class RiderPayout(models.Model):
