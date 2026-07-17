@@ -621,10 +621,12 @@ class YdmLogisticsSettingAPI(APIView):
 
     def patch(self, request):
         if not (
-            request.user and request.user.is_authenticated and request.user.is_staff
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == "ydm"
         ):
             return Response(
-                {"detail": "Only admin users can update logistics settings."},
+                {"detail": "Only YDM users can update logistics settings."},
                 status=status.HTTP_403_FORBIDDEN,
             )
         instance = YdmLogisticsSetting.load()
