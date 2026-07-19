@@ -6,7 +6,7 @@ class UserStatementSerializer(serializers.Serializer):
     total_order = serializers.IntegerField()
     total_amount = serializers.FloatField()
     delivery_count = serializers.IntegerField()
-    cash_in = serializers.FloatField()
+    delivered_amount = serializers.FloatField()
     delivery_charge = serializers.FloatField()
     payment = serializers.FloatField()
     balance = serializers.FloatField()

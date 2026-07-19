@@ -25,4 +25,5 @@ urlpatterns = [
     path("api/", include("invoice.urls")),
     path("api/", include("rider.urls")),
     path("api/account/", include("account.urls")),
+    path("api/", include("notification.urls")),
 ]

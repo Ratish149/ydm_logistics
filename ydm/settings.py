@@ -35,6 +35,7 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
     "unfold",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -42,11 +43,13 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "channels",
     "rest_framework",
     "corsheaders",
     "django_filters",
     "account",
     "logistics",
+    "notification",
     "invoice",
     "rider",
     "dashboard",
@@ -94,6 +97,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "ydm.wsgi.application"
+ASGI_APPLICATION = "ydm.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
 
 
 # Database

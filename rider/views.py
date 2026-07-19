@@ -416,10 +416,26 @@ class RiderOrderVerifyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        from logistics.models import YdmLogisticsSetting
+
+        logistics_settings = YdmLogisticsSetting.load()
+
+        if delivery_location_type == "Inside Ringroad":
+            order.ydm_delivery_charge = logistics_settings.inside_ringroad_charge
+        else:
+            order.ydm_delivery_charge = logistics_settings.outside_ringroad_charge
+
+        order.ydm_cancelled_charge = logistics_settings.cancelled_charge
         order.delivery_location_type = delivery_location_type
         order.is_rider_verified = True
         order.save(
-            update_fields=["delivery_location_type", "is_rider_verified", "updated_at"]
+            update_fields=[
+                "delivery_location_type",
+                "is_rider_verified",
+                "ydm_delivery_charge",
+                "ydm_cancelled_charge",
+                "updated_at",
+            ]
         )
 
         return Response(
@@ -428,6 +444,8 @@ class RiderOrderVerifyView(APIView):
                 "tracking_number": order.tracking_number,
                 "delivery_location_type": order.delivery_location_type,
                 "is_rider_verified": order.is_rider_verified,
+                "ydm_delivery_charge": order.ydm_delivery_charge,
+                "ydm_cancelled_charge": order.ydm_cancelled_charge,
             },
             status=status.HTTP_200_OK,
         )
@@ -459,7 +477,7 @@ class RiderOrderStatusUpdateView(APIView):
     }
 
     def post(self, request, tracking_number):
-        from logistics.models import Order, YdmLogisticsSetting
+        from logistics.models import Order
         from logistics.services.order_service import update_order_status
 
         user = request.user
@@ -515,28 +533,12 @@ class RiderOrderStatusUpdateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # For DELIVERED: auto-set ydm_delivery_charge from location type
+        # For DELIVERED: set delivered_at timestamp
         if new_status_value == Order.STATUS_DELIVERED:
-            loc_type = order.delivery_location_type
-            if not loc_type:
-                return Response(
-                    {
-                        "detail": (
-                            "Order must be verified with a delivery_location_type "
-                            "before marking as delivered."
-                        )
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            settings_obj = YdmLogisticsSetting.load()
-            if loc_type == "Inside Ringroad":
-                order.ydm_delivery_charge = settings_obj.inside_ringroad_charge
-            else:
-                order.ydm_delivery_charge = settings_obj.outside_ringroad_charge
+            from django.utils import timezone
+
             order.delivered_at = timezone.now()
-            order.save(
-                update_fields=["ydm_delivery_charge", "delivered_at", "updated_at"]
-            )
+            order.save(update_fields=["delivered_at", "updated_at"])
 
         # Resolve webhook URL from the order owner's active API keys
         from account.models import APIKey

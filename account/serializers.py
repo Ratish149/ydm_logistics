@@ -70,6 +70,12 @@ class APIKeySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class WebhookSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = APIKey
+        fields = ["webhook_url"]
+
+
 class UserListSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -87,6 +93,31 @@ class UserListSerializer(serializers.ModelSerializer):
             "date_joined",
         ]
         read_only_fields = fields
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "phone_number",
+            "address",
+            "role",
+            "is_active",
+            "is_staff",
+            "date_joined",
+        ]
+        read_only_fields = [
+            "id",
+            "username",
+            "email",
+            "is_staff",
+            "date_joined",
+        ]
 
 
 class VendorListSerializer(serializers.ModelSerializer):

@@ -8,13 +8,14 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from account.authentication import APIKeyAuthentication
-from account.filters import UserFilter
+from account.filters import UserFilter, VendorFilter
 from account.permissions import HasValidAPIKey, IsYDM
 from account.serializers import (
     APIKeySerializer,
     UserListSerializer,
     UserLoginSerializer,
     UserRegisterSerializer,
+    UserUpdateSerializer,
     VendorListSerializer,
 )
 from account.services import api_key_service
@@ -115,6 +116,19 @@ class UserListAPI(generics.ListAPIView):
     filterset_class = UserFilter
 
 
+class UserDetailAPI(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET: Retrieve a single user.
+    PUT/PATCH: Update user details.
+    DELETE: Delete a user.
+    """
+
+    queryset = User.objects.all()
+    serializer_class = UserUpdateSerializer
+    authentication_classes = [JWTAuthentication, APIKeyAuthentication]
+    permission_classes = [HasValidAPIKey]
+
+
 class VendorListAPI(generics.ListAPIView):
     """
     GET: List all vendor users with a count of their unverified (ORDER_PLACED) orders.
@@ -123,6 +137,8 @@ class VendorListAPI(generics.ListAPIView):
     serializer_class = VendorListSerializer
     authentication_classes = [JWTAuthentication, APIKeyAuthentication]
     permission_classes = [IsYDM]
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = VendorFilter
     pagination_class = CustomPagination
 
     def get_queryset(self):
@@ -137,5 +153,5 @@ class VendorListAPI(generics.ListAPIView):
                     filter=Q(orders__status=Order.STATUS_ORDER_PLACED),
                 )
             )
-            .order_by("first_name", "last_name")
+            .order_by("-new_order_count", "first_name", "last_name")
         )

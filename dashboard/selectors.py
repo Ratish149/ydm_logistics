@@ -621,9 +621,9 @@ def generate_order_tracking_statement_optimized(
             continue
         seen_delivered_orders.add(log.order_id)
         if d not in delivered_map:
-            delivered_map[d] = {"count": 0, "cash_in": 0.0, "charge": 0.0}
+            delivered_map[d] = {"count": 0, "delivered_amount": 0.0, "charge": 0.0}
         delivered_map[d]["count"] += 1
-        delivered_map[d]["cash_in"] += float(log.order.cod_amount or 0.0)
+        delivered_map[d]["delivered_amount"] += float(log.order.cod_amount or 0.0)
         delivered_map[d]["charge"] += float(log.order.ydm_delivery_charge or 0.0)
 
     cancelled_map = {}
@@ -656,26 +656,35 @@ def generate_order_tracking_statement_optimized(
     curr = start_date
     while curr <= end_date:
         placed = placed_map.get(curr, {"count": 0, "amount": 0.0})
-        deliv = delivered_map.get(curr, {"count": 0, "cash_in": 0.0, "charge": 0.0})
+        deliv = delivered_map.get(curr, {"count": 0, "delivered_amount": 0.0, "charge": 0.0})
         canc = cancelled_map.get(curr, {"charge": 0.0})
 
         day_charge = deliv["charge"] + canc["charge"]
         pay = payments_map.get(curr, 0.0)
 
-        running_balance += deliv["cash_in"] - day_charge - pay
+        running_balance += deliv["delivered_amount"] - day_charge - pay
 
-        statement_data.append({
-            "date": curr,
-            "total_order": placed["count"],
-            "total_amount": placed["amount"],
-            "delivery_count": deliv["count"],
-            "cash_in": deliv["cash_in"],
-            "delivery_charge": day_charge,
-            "payment": pay,
-            "balance": running_balance,
-        })
+        # Only append if there is actual activity on this day
+        if (
+            placed["count"] > 0
+            or deliv["count"] > 0
+            or day_charge > 0
+            or pay > 0
+        ):
+            statement_data.append({
+                "date": curr,
+                "total_order": placed["count"],
+                "total_amount": placed["amount"],
+                "delivery_count": deliv["count"],
+                "delivered_amount": deliv["delivered_amount"],
+                "delivery_charge": day_charge,
+                "payment": pay,
+                "balance": running_balance,
+            })
         curr += timedelta(days=1)
 
+    # Sort latest date first
+    statement_data.reverse()
     return statement_data
 
 

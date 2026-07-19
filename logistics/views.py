@@ -12,7 +12,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from account.authentication import APIKeyAuthentication
 from account.permissions import HasValidAPIKey
 from logistics.filters import OrderFilter
-from logistics.models import Order, YdmLogisticsSetting
+from logistics.models import YdmLogisticsSetting
+from logistics.permissions import IsOrderOwnerOrYdmForUpdate
 from logistics.selectors import order_selector
 from logistics.serializers import (
     OrderCommentSerializer,
@@ -67,25 +68,13 @@ class OrderListCreateAPI(ListCreateAPIView):
 
 class OrderDetailAPI(RetrieveUpdateDestroyAPIView):
     authentication_classes = [JWTAuthentication, APIKeyAuthentication]
-    permission_classes = [HasValidAPIKey]
+    permission_classes = [HasValidAPIKey, IsOrderOwnerOrYdmForUpdate]
     serializer_class = OrderDetailSerializer
     lookup_field = "tracking_number"
     lookup_url_kwarg = "tracking_number"
 
     def get_queryset(self):
-        user = self.request.user
-        if (
-            user
-            and not user.is_anonymous
-            and getattr(user, "role", None) == "YDM_Rider"
-        ):
-            return (
-                Order.objects
-                .filter(assigned_rider=user)
-                .select_related("user", "assigned_rider")
-                .prefetch_related("change_logs")
-            )
-        return order_selector.get_orders_for_client(user)
+        return order_selector.get_orders_for_client(user=None)
 
 
 class OrderStatusUpdateAPI(APIView):
@@ -129,8 +118,18 @@ class WebhookConfigAPI(APIView):
     permission_classes = [HasValidAPIKey]
 
     def _get_api_key(self, request):
-        """Return the APIKey instance when authenticated via API key, else None."""
-        return request.auth if hasattr(request.auth, "webhook_url") else None
+        """Return the APIKey instance when authenticated via API key or JWT."""
+        # 1. Authenticated directly via API Key
+        if hasattr(request.auth, "webhook_url"):
+            return request.auth
+
+        # 2. Authenticated via JWT, fetch the user's active API Key
+        if request.user and request.user.is_authenticated:
+            from account.models import APIKey
+
+            return APIKey.objects.filter(user=request.user, is_active=True).first()
+
+        return None
 
     def get(self, request):
         api_key = self._get_api_key(request)
@@ -583,7 +582,7 @@ class OrderAssignRiderAPI(APIView):
             )
         if not order_ids or not isinstance(order_ids, list):
             return Response(
-                {"detail": "order_ids must be a non-empty list of integers."},
+                {"detail": "order_ids must be a non-empty list of strings."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -591,7 +590,9 @@ class OrderAssignRiderAPI(APIView):
 
         try:
             assign_rider_to_orders(
-                rider_id=rider_id, order_ids=order_ids, changed_by=request.user
+                rider_id=rider_id,
+                tracking_numbers=order_ids,
+                changed_by=request.user,
             )
         except ValueError as exc:
             return Response(

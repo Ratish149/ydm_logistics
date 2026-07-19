@@ -99,6 +99,11 @@ def create_order(
         comment="Order Placed",
     )
 
+    # Send WebSocket notification
+    from notification.services import send_order_placed_notification
+
+    send_order_placed_notification(order)
+
     return order
 
 
@@ -147,6 +152,18 @@ def update_order_status(
         order.status = new_status
         order.save(update_fields=["status", "updated_at"])
         handle_order_status_change(order, old_status, new_status, changed_by, comment)
+        try:
+            from notification.services.notification_service import (
+                send_order_status_update_notification,
+            )
+
+            send_order_status_update_notification(
+                order, changed_by, old_status, new_status
+            )
+        except Exception as e:
+            print(
+                f"[Notification Trigger Error] Failed to trigger status update notification: {e}"
+            )
         print(
             f"[YDM Status Change] Saved status for {order.tracking_number} successfully."
         )
@@ -182,8 +199,11 @@ def create_order_comment(
 
 
 @transaction.atomic
-def assign_rider_to_orders(rider_id: int, order_ids: list, changed_by=None) -> list[Order]:
+def assign_rider_to_orders(
+    rider_id: int, tracking_numbers: list, changed_by=None
+) -> list[Order]:
     from django.contrib.auth import get_user_model
+
     User = get_user_model()
 
     try:
@@ -191,7 +211,7 @@ def assign_rider_to_orders(rider_id: int, order_ids: list, changed_by=None) -> l
     except User.DoesNotExist:
         raise ValueError("Rider not found or is not a YDM Rider.")
 
-    orders = Order.objects.filter(id__in=order_ids)
+    orders = Order.objects.filter(tracking_number__in=tracking_numbers)
     for order in orders:
         old_status = order.status
         order.assigned_rider = rider
@@ -206,4 +226,14 @@ def assign_rider_to_orders(rider_id: int, order_ids: list, changed_by=None) -> l
             new_status=Order.STATUS_READY_FOR_DISPATCH,
             comment=f"Assigned rider {rider.get_full_name() or rider.username}",
         )
+
+        # Send WebSocket notification
+        try:
+            from notification.services import send_rider_assigned_notification
+
+            send_rider_assigned_notification(order)
+        except Exception as e:
+            print(
+                f"[WebSocket Notification Error] Failed to send rider assignment notification: {e}"
+            )
     return list(orders)
