@@ -3,6 +3,7 @@ import io
 from django.http import HttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
+from rest_framework.filters import SearchFilter
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
@@ -28,8 +29,13 @@ from ydm.utils.pagination import CustomPagination
 class OrderListCreateAPI(ListCreateAPIView):
     authentication_classes = [JWTAuthentication, APIKeyAuthentication]
     permission_classes = [HasValidAPIKey]
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = OrderFilter
+    search_fields = [
+        "tracking_number",
+        "recipient_name",
+        "recipient_phone",
+    ]
     pagination_class = CustomPagination
 
     def _resolve_target_user(self):

@@ -60,6 +60,9 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     assigned_rider_name = serializers.CharField(
         source="assigned_rider.get_full_name", default="", read_only=True
     )
+    comment = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, default=""
+    )
 
     class Meta:
         model = Order
@@ -94,20 +97,48 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "updated_at",
             "change_logs",
             "comments",
+            "comment",
         ]
 
     def update(self, instance, validated_data):
+        comment = validated_data.pop("comment", "").strip()
         old_status = instance.status
-        new_status = validated_data.get("status", old_status)
+        status_to_set = validated_data.pop("status", None)
 
         order = super().update(instance, validated_data)
 
-        if old_status != new_status:
+        if status_to_set and old_status != status_to_set:
             request = self.context.get("request")
             user = request.user if request else self.context.get("user")
-            from logistics.services.order_service import handle_order_status_change
 
-            handle_order_status_change(order, old_status, new_status, changed_by=user)
+            # Resolve webhook URL from the order owner's active API keys
+            from account.models import APIKey
+
+            api_key_obj = (
+                APIKey.objects
+                .filter(user=order.user, is_active=True)
+                .exclude(webhook_url="")
+                .exclude(webhook_url__isnull=True)
+                .first()
+            )
+            webhook_url = api_key_obj.webhook_url if api_key_obj else None
+
+            from logistics.services.order_service import update_order_status
+
+            update_order_status(
+                order,
+                status_to_set,
+                changed_by=user,
+                webhook_url=webhook_url,
+                comment=comment or None,
+            )
+        elif comment:
+            # If status is not changed but a comment is passed, create a comment
+            request = self.context.get("request")
+            user = request.user if request else self.context.get("user")
+            from logistics.services.order_service import create_order_comment
+
+            create_order_comment(order, commented_by=user, message=comment)
 
         return order
 

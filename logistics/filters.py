@@ -17,12 +17,20 @@ class OrderFilter(django_filters.FilterSet):
     recipient_district = django_filters.CharFilter(
         field_name="recipient_district", lookup_expr="iexact"
     )
-    start_date = django_filters.DateTimeFilter(
-        field_name="created_at", lookup_expr="gte"
+    start_date = django_filters.DateFilter(
+        field_name="created_at", lookup_expr="date__gte"
     )
-    end_date = django_filters.DateTimeFilter(field_name="created_at", lookup_expr="lte")
+    end_date = django_filters.DateFilter(
+        field_name="created_at", lookup_expr="date__lte"
+    )
     delivery_location_type = django_filters.CharFilter(
         field_name="delivery_location_type", lookup_expr="iexact"
+    )
+    tracking_number = django_filters.CharFilter(
+        field_name="tracking_number", lookup_expr="icontains"
+    )
+    recipient_name = django_filters.CharFilter(
+        field_name="recipient_name", lookup_expr="icontains"
     )
 
     class Meta:
@@ -35,4 +43,6 @@ class OrderFilter(django_filters.FilterSet):
             "recipient_district",
             "created_at",
             "delivery_location_type",
+            "tracking_number",
+            "recipient_name",
         ]
