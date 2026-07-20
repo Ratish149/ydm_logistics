@@ -32,6 +32,14 @@ class OrderFilter(django_filters.FilterSet):
     recipient_name = django_filters.CharFilter(
         field_name="recipient_name", lookup_expr="icontains"
     )
+    is_assigned = django_filters.BooleanFilter(method="filter_is_assigned")
+
+    def filter_is_assigned(self, queryset, name, value):
+        if value is True:
+            return queryset.filter(assigned_rider__isnull=False)
+        elif value is False:
+            return queryset.filter(assigned_rider__isnull=True)
+        return queryset
 
     class Meta:
         model = Order
@@ -45,4 +53,5 @@ class OrderFilter(django_filters.FilterSet):
             "delivery_location_type",
             "tracking_number",
             "recipient_name",
+            "is_assigned",
         ]

@@ -115,7 +115,8 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             from account.models import APIKey
 
             api_key_obj = (
-                APIKey.objects.filter(user=order.user, is_active=True)
+                APIKey.objects
+                .filter(user=order.user, is_active=True)
                 .exclude(webhook_url="")
                 .exclude(webhook_url__isnull=True)
                 .first()
