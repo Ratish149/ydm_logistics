@@ -115,8 +115,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             from account.models import APIKey
 
             api_key_obj = (
-                APIKey.objects
-                .filter(user=order.user, is_active=True)
+                APIKey.objects.filter(user=order.user, is_active=True)
                 .exclude(webhook_url="")
                 .exclude(webhook_url__isnull=True)
                 .first()
@@ -141,6 +140,45 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             create_order_comment(order, commented_by=user, message=comment)
 
         return order
+
+
+class OrderListSerializer(serializers.ModelSerializer):
+    assigned_rider_name = serializers.CharField(
+        source="assigned_rider.get_full_name", default="", read_only=True
+    )
+    latest_status_comment = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Order
+        fields = [
+            "tracking_number",
+            "external_order_code",
+            "recipient_name",
+            "recipient_phone",
+            "recipient_address",
+            "recipient_city",
+            "recipient_district",
+            "cod_amount",
+            "delivery_charge",
+            "payment_type",
+            "status",
+            "assigned_rider",
+            "assigned_rider_name",
+            "is_rider_verified",
+            "created_at",
+            "latest_status_comment",
+        ]
+
+    def get_latest_status_comment(self, obj):
+        logs = [
+            log
+            for log in obj.change_logs.all()
+            if log.new_status == obj.status and log.comment
+        ]
+        if not logs:
+            return ""
+        logs.sort(key=lambda x: x.changed_at, reverse=True)
+        return logs[0].comment
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):

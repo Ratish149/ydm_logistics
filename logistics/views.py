@@ -20,6 +20,7 @@ from logistics.serializers import (
     OrderCommentSerializer,
     OrderCreateSerializer,
     OrderDetailSerializer,
+    OrderListSerializer,
     OrderStatusUpdateSerializer,
     YdmLogisticsSettingSerializer,
 )
@@ -60,7 +61,7 @@ class OrderListCreateAPI(ListCreateAPIView):
     def get_serializer_class(self):
         if self.request.method == "POST":
             return OrderCreateSerializer
-        return OrderDetailSerializer
+        return OrderListSerializer
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
