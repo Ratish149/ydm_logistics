@@ -22,9 +22,20 @@ def get_orders_for_client(user) -> QuerySet[Order]:
     )
     if user is None:
         return qs
+
+    from account.models import CustomUser
+
     if isinstance(user, (str, int)):
-        return qs.filter(user_id=user)
-    return qs.filter(user=user)
+        try:
+            user_obj = CustomUser.objects.get(pk=user)
+        except CustomUser.DoesNotExist:
+            return Order.objects.none()
+    else:
+        user_obj = user
+
+    if user_obj.role == CustomUser.ROLE_RIDER:
+        return qs.filter(assigned_rider=user_obj)
+    return qs.filter(user=user_obj)
 
 
 def get_order_by_tracking(tracking_number: str, user=None) -> Order | None:
