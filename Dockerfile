@@ -37,5 +37,6 @@ RUN mkdir -p /app/media
 # Expose port
 EXPOSE 8000
 
-# Run server using daphne for ASGI/WebSocket support
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "ydm.asgi:application"]
+# Run migrations and start server using daphne for ASGI/WebSocket support
+CMD ["sh", "-c", "python manage.py migrate && daphne -b 0.0.0.0 -p 8000 ydm.asgi:application"]
+
