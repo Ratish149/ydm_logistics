@@ -31,7 +31,7 @@ COPY . .
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
-# Create media and static directories
+# Create media directories
 RUN mkdir -p /app/media
 
 # Expose port

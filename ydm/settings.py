@@ -78,7 +78,8 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://medications-scenes-looking-comparable.trycloudflare.com",
+    "https://*.nepdora.com",
+    "https://*.trycloudflare.com",
 ]
 
 
