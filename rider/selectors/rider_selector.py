@@ -148,23 +148,25 @@ def get_rider_commission_stats(rider: CustomUser) -> dict:
 
 
 def get_rider_package_stats(
-    rider: CustomUser, start_date: date, end_date: date
+    rider: CustomUser, start_date: date = None, end_date: date = None
 ) -> dict:
     """
     Returns range-specific package counts and lifetime totals.
     """
-    total_assigned_in_range = Order.objects.filter(
-        assigned_rider=rider,
-        created_at__date__gte=start_date,
-        created_at__date__lte=end_date,
-    ).count()
+    assigned_qs = Order.objects.filter(assigned_rider=rider)
+    delivered_qs = Order.objects.filter(
+        assigned_rider=rider, status=Order.STATUS_DELIVERED
+    )
 
-    total_delivered_in_range = Order.objects.filter(
-        assigned_rider=rider,
-        status=Order.STATUS_DELIVERED,
-        created_at__date__gte=start_date,
-        created_at__date__lte=end_date,
-    ).count()
+    if start_date:
+        assigned_qs = assigned_qs.filter(created_at__date__gte=start_date)
+        delivered_qs = delivered_qs.filter(created_at__date__gte=start_date)
+    if end_date:
+        assigned_qs = assigned_qs.filter(created_at__date__lte=end_date)
+        delivered_qs = delivered_qs.filter(created_at__date__lte=end_date)
+
+    total_assigned_in_range = assigned_qs.count()
+    total_delivered_in_range = delivered_qs.count()
 
     lifetime_delivered_count = Order.objects.filter(
         assigned_rider=rider, status=Order.STATUS_DELIVERED

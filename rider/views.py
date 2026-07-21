@@ -212,19 +212,18 @@ class RiderPackageStatsView(APIView):
         start_date_str = request.query_params.get("start_date")
         end_date_str = request.query_params.get("end_date")
 
-        today = timezone.localdate()
+        start_date = None
+        end_date = None
 
         try:
-            start_date = (
-                timezone.datetime.strptime(start_date_str, "%Y-%m-%d").date()
-                if start_date_str
-                else today
-            )
-            end_date = (
-                timezone.datetime.strptime(end_date_str, "%Y-%m-%d").date()
-                if end_date_str
-                else today
-            )
+            if start_date_str:
+                start_date = (
+                    timezone.datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                )
+            if end_date_str:
+                end_date = (
+                    timezone.datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                )
         except ValueError:
             return Response(
                 {
