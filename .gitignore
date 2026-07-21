@@ -1,0 +1,26 @@
+# Environment variables
+.env
+
+# Media files
+/media/
+media/
+
+# Python caching
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Databases
+db.sqlite3
+dummy_db.sqlite3
+
+# Virtual environment
+env/
+venv/
+.venv/
+ENV/
+
+# IDE files
+.DS_Store
+.idea/
+.vscode/

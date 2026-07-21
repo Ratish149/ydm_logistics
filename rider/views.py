@@ -217,13 +217,11 @@ class RiderPackageStatsView(APIView):
 
         try:
             if start_date_str:
-                start_date = (
-                    timezone.datetime.strptime(start_date_str, "%Y-%m-%d").date()
-                )
+                start_date = timezone.datetime.strptime(
+                    start_date_str, "%Y-%m-%d"
+                ).date()
             if end_date_str:
-                end_date = (
-                    timezone.datetime.strptime(end_date_str, "%Y-%m-%d").date()
-                )
+                end_date = timezone.datetime.strptime(end_date_str, "%Y-%m-%d").date()
         except ValueError:
             return Response(
                 {
