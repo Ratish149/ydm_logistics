@@ -107,7 +107,7 @@ class UserListAPI(generics.ListAPIView):
     GET: List all users in the system with pagination and filtering.
     """
 
-    queryset = User.objects.all().order_by("first_name", "last_name")
+    queryset = User.objects.filter(is_superuser=False, is_staff=False).order_by("first_name", "last_name")
     serializer_class = UserListSerializer
     authentication_classes = [JWTAuthentication, APIKeyAuthentication]
     permission_classes = [HasValidAPIKey]
