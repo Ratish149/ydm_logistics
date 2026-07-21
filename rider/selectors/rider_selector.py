@@ -207,7 +207,6 @@ def get_rider_daily_stats(rider: CustomUser, start_date: date, end_date: date) -
     return_statuses = [
         Order.STATUS_CANCELLED,
         Order.STATUS_RETURNING_TO_VENDOR,
-        Order.STATUS_RETURNED_TO_VENDOR,
     ]
     returned_logs = OrderChangeLog.objects.filter(
         order__assigned_rider=rider,

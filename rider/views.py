@@ -43,16 +43,16 @@ class RiderCommissionView(APIView):
         if user.role == "YDM_Rider":
             rider = user
         else:
-            rider_id = request.query_params.get("rider")
+            rider_id = request.query_params.get("user_id")
             if not rider_id:
                 return Response(
                     {
-                        "detail": "rider query parameter (phone number) is required for non-rider users."
+                        "detail": "rider query parameter (id) is required for non-rider users."
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             try:
-                rider = User.objects.get(phone_number=rider_id, role="YDM_Rider")
+                rider = User.objects.get(id=rider_id, role="YDM_Rider")
             except User.DoesNotExist:
                 return Response(
                     {"detail": "Rider not found or is not a YDM Rider."},
@@ -82,13 +82,13 @@ class RiderPayoutView(generics.ListCreateAPIView):
         if user.role == "YDM_Rider":
             rider = user
         else:
-            rider_id = self.request.query_params.get("rider")
+            rider_id = self.request.query_params.get("user_id")
             if not rider_id:
                 raise ValidationError({
                     "detail": "rider query parameter (phone number) is required for non-rider users."
                 })
             try:
-                rider = User.objects.get(phone_number=rider_id, role="YDM_Rider")
+                rider = User.objects.get(id=rider_id, role="YDM_Rider")
             except User.DoesNotExist:
                 raise NotFound({"detail": "Rider not found or is not a YDM Rider."})
 
@@ -112,7 +112,7 @@ class RiderPayoutView(generics.ListCreateAPIView):
             )
 
         try:
-            rider = User.objects.get(phone_number=rider_id, role="YDM_Rider")
+            rider = User.objects.get(id=rider_id, role="YDM_Rider")
         except User.DoesNotExist:
             return Response(
                 {"detail": "Rider not found or is not a YDM Rider."},
@@ -153,10 +153,10 @@ class RiderCommissionStatsView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        rider_id = request.query_params.get("rider")
+        rider_id = request.query_params.get("user_id")
         if rider_id:
             try:
-                rider = User.objects.get(phone_number=rider_id, role="YDM_Rider")
+                rider = User.objects.get(id=rider_id, role="YDM_Rider")
             except User.DoesNotExist:
                 return Response(
                     {"detail": "Rider not found or is not a YDM Rider."},
@@ -193,7 +193,7 @@ class RiderPackageStatsView(APIView):
         if user.role == "YDM_Rider":
             rider = user
         else:
-            rider_id = request.query_params.get("rider")
+            rider_id = request.query_params.get("user_id")
             if not rider_id:
                 return Response(
                     {
@@ -202,7 +202,7 @@ class RiderPackageStatsView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             try:
-                rider = User.objects.get(phone_number=rider_id, role="YDM_Rider")
+                rider = User.objects.get(id=rider_id, role="YDM_Rider")
             except User.DoesNotExist:
                 return Response(
                     {"detail": "Rider not found or is not a YDM Rider."},
@@ -263,13 +263,13 @@ class RiderOrdersListView(generics.ListAPIView):
         if user.role == "YDM_Rider":
             rider = user
         else:
-            rider_id = self.request.query_params.get("rider")
+            rider_id = self.request.query_params.get("user_id")
             if not rider_id:
                 raise ValidationError({
                     "detail": "rider query parameter (phone number) is required for non-rider users."
                 })
             try:
-                rider = User.objects.get(phone_number=rider_id, role="YDM_Rider")
+                rider = User.objects.get(id=rider_id, role="YDM_Rider")
             except User.DoesNotExist:
                 raise NotFound({"detail": "Rider not found or is not a YDM Rider."})
 
@@ -320,7 +320,7 @@ class RiderDailyStatsView(APIView):
         if user.role == "YDM_Rider":
             rider = user
         else:
-            rider_id = request.query_params.get("rider")
+            rider_id = request.query_params.get("user_id")
             if not rider_id:
                 return Response(
                     {
@@ -329,7 +329,7 @@ class RiderDailyStatsView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             try:
-                rider = User.objects.get(phone_number=rider_id, role="YDM_Rider")
+                rider = User.objects.get(id=rider_id, role="YDM_Rider")
             except User.DoesNotExist:
                 return Response(
                     {"detail": "Rider not found or is not a YDM Rider."},
@@ -339,29 +339,25 @@ class RiderDailyStatsView(APIView):
         start_date_str = request.query_params.get("start_date")
         end_date_str = request.query_params.get("end_date")
 
-        if not start_date_str and not end_date_str:
-            today = timezone.localdate()
-            start_date = today.replace(day=1)
-            end_date = today
-        else:
-            try:
-                start_date = (
-                    timezone.datetime.strptime(start_date_str, "%Y-%m-%d").date()
-                    if start_date_str
-                    else None
-                )
-                end_date = (
-                    timezone.datetime.strptime(end_date_str, "%Y-%m-%d").date()
-                    if end_date_str
-                    else None
-                )
-            except ValueError:
-                return Response(
-                    {
-                        "detail": "Invalid date format. Use YYYY-MM-DD for start_date and end_date."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        today = timezone.localdate()
+        try:
+            start_date = (
+                timezone.datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                if start_date_str
+                else today.replace(day=1)
+            )
+            end_date = (
+                timezone.datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                if end_date_str
+                else today
+            )
+        except ValueError:
+            return Response(
+                {
+                    "detail": "Invalid date format. Use YYYY-MM-DD for start_date and end_date."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         results = get_rider_daily_stats(rider, start_date, end_date)
         return Response(results, status=status.HTTP_200_OK)
