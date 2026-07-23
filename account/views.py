@@ -107,7 +107,9 @@ class UserListAPI(generics.ListAPIView):
     GET: List all users in the system with pagination and filtering.
     """
 
-    queryset = User.objects.filter(is_superuser=False, is_staff=False).order_by("first_name", "last_name")
+    queryset = User.objects.filter(is_superuser=False, is_staff=False).order_by(
+        "first_name", "last_name"
+    )
     serializer_class = UserListSerializer
     authentication_classes = [JWTAuthentication, APIKeyAuthentication]
     permission_classes = [HasValidAPIKey]
@@ -146,7 +148,7 @@ class VendorListAPI(generics.ListAPIView):
 
         return (
             User.objects
-            .filter(role=User.ROLE_VENDOR)
+            .filter(role=User.ROLE_VENDOR, is_staff=False, is_superuser=False)
             .annotate(
                 new_order_count=Count(
                     "orders",

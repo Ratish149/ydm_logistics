@@ -410,6 +410,7 @@ class RiderOrderVerifyView(APIView):
             )
 
         from logistics.models import YdmLogisticsSetting
+        from logistics.services.order_service import update_order_status
 
         logistics_settings = YdmLogisticsSetting.load()
 
@@ -418,7 +419,8 @@ class RiderOrderVerifyView(APIView):
         else:
             order.ydm_delivery_charge = logistics_settings.outside_ringroad_charge
 
-        order.ydm_cancelled_charge = logistics_settings.cancelled_charge
+        order.ydm_cancelled_charge = 0
+
         order.delivery_location_type = delivery_location_type
         order.is_rider_verified = True
         order.save(
@@ -431,10 +433,18 @@ class RiderOrderVerifyView(APIView):
             ]
         )
 
+        update_order_status(
+            order,
+            Order.STATUS_OUT_FOR_DELIVERY,
+            changed_by=user,
+            comment="Order verified by rider.",
+        )
+
         return Response(
             {
                 "detail": "Order verified successfully.",
                 "tracking_number": order.tracking_number,
+                "status": order.status,
                 "delivery_location_type": order.delivery_location_type,
                 "is_rider_verified": order.is_rider_verified,
                 "ydm_delivery_charge": order.ydm_delivery_charge,

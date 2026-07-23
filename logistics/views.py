@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from account.authentication import APIKeyAuthentication
+from account.models import CustomUser
 from account.permissions import HasValidAPIKey
 from logistics.filters import OrderFilter
 from logistics.models import YdmLogisticsSetting
@@ -42,21 +43,28 @@ class OrderListCreateAPI(ListCreateAPIView):
     def _resolve_target_user(self):
         """
         Returns the user whose orders should be listed.
-        - ydm role: can pass ?user_id=<id> to see any user's orders.
+        - ydm / rider role: can pass ?user_id=<id> to see any user's orders.
           If no user_id is given, returns all orders (no user filter).
         - Everyone else: always scoped to their own authenticated user.
         """
         request = self.request
-        if request.user.role == "ydm":
+        if request.user.role in [CustomUser.ROLE_YDM, CustomUser.ROLE_RIDER]:
             user_id = request.query_params.get("user_id")
             if user_id:
                 return user_id  # numeric id string — resolved in selector
-            return None  # ydm with no filter → all orders
+            return None  # ydm/rider with no filter → all orders
         return request.user
 
     def get_queryset(self):
         target = self._resolve_target_user()
-        return order_selector.get_orders_for_client(target)
+        qs = order_selector.get_orders_for_client(target)
+        if self.request.user.role == CustomUser.ROLE_RIDER:
+            from logistics.models import Order
+
+            qs = qs.exclude(status=Order.STATUS_ORDER_PLACED).filter(
+                assigned_rider__isnull=True
+            )
+        return qs
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -573,7 +581,7 @@ class OrderAssignRiderAPI(APIView):
     permission_classes = [HasValidAPIKey]
 
     def post(self, request):
-        if request.user.role not in ["ydm", "YDM_Operator", "YDM_Logistics"]:
+        if request.user.role not in ["ydm", "YDM_Rider", "YDM_Logistics"]:
             return Response(
                 {"detail": "You do not have permission to assign riders to orders."},
                 status=status.HTTP_403_FORBIDDEN,

@@ -6,11 +6,11 @@ from django.db.models import Count, Sum
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
-from invoice.models import Invoice
 from logistics.models import (
     Order,
     OrderChangeLog,
 )
+from payment.models import CodPayment
 
 User = get_user_model()
 
@@ -208,6 +208,12 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
         )["total"]
         or 0.0
     )
+    paid_delivery_amount = (
+        CodPayment.objects.filter(user_id=query_user_id, status="Paid").aggregate(
+            total=Sum("delivery_amount")
+        )["total"]
+        or 0.0
+    )
     cancelled_charge = (
         orders.filter(
             status__in=[
@@ -222,8 +228,8 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
     # 3. Pending COD
     delivered_stats = get_status_info(Order.STATUS_DELIVERED)
     approved_paid = (
-        Invoice.objects.filter(user_id=query_user_id, is_approved=True).aggregate(
-            total=Sum("paid_amount")
+        CodPayment.objects.filter(user_id=query_user_id, status="Paid").aggregate(
+            total=Sum("total_amount")
         )["total"]
         or 0.0
     )
@@ -236,19 +242,19 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
         - float(approved_paid),
     )
 
-    # 4. Last COD Payment (from approved invoices)
-    last_invoice = (
-        Invoice.objects
-        .filter(user_id=query_user_id, is_approved=True)
-        .order_by("-approved_at")
+    # 4. Last COD Payment (from paid CodPayments)
+    last_cod_payment_obj = (
+        CodPayment.objects
+        .filter(user_id=query_user_id, status="Paid")
+        .order_by("-created_at")
         .first()
     )
     last_cod_payment = (
         {
-            "amount": float(last_invoice.paid_amount or 0.0),
-            "date": last_invoice.approved_at,
+            "amount": float(last_cod_payment_obj.total_amount or 0.0),
+            "date": last_cod_payment_obj.created_at,
         }
-        if last_invoice
+        if last_cod_payment_obj
         else None
     )
 
@@ -316,11 +322,23 @@ def get_complete_dashboard_stats(user=None, target_user_id=None) -> dict:
             "total_delivered": delivered_stats,
             "total_rtv": total_rtv,
             "total_delivery_charge": {
-                "nos": orders.filter(
-                    status=Order.STATUS_DELIVERED,
-                    ydm_delivery_charge__isnull=False,
-                ).count(),
-                "amount": float(valid_charge),
+                "nos": orders
+                .filter(
+                    status__in=[
+                        Order.STATUS_DELIVERED,
+                        Order.STATUS_CANCELLED,
+                        Order.STATUS_RETURNING_TO_VENDOR,
+                        Order.STATUS_RETURNED_TO_VENDOR,
+                    ],
+                )
+                .filter(
+                    models.Q(ydm_delivery_charge__isnull=False)
+                    | models.Q(ydm_cancelled_charge__isnull=False)
+                )
+                .count(),
+                "amount": float(valid_charge)
+                + float(cancelled_charge)
+                - float(paid_delivery_amount),
             },
             "total_cancellation_charge": {
                 "nos": orders.filter(
@@ -487,8 +505,8 @@ def calculate_dashboard_pending_cod(user_id) -> dict:
     total_charge = valid_charge + cancelled_charge
 
     approved_paid = (
-        Invoice.objects.filter(user_id=user_id, is_approved=True).aggregate(
-            total=Sum("paid_amount")
+        CodPayment.objects.filter(user_id=user_id, status="Paid").aggregate(
+            total=Sum("total_amount")
         )["total"]
         or 0.0
     )
@@ -554,11 +572,11 @@ def generate_order_tracking_statement_optimized(
     )
 
     hist_payments = (
-        Invoice.objects.filter(
+        CodPayment.objects.filter(
             user_id=user_id,
-            is_approved=True,
-            approved_at__date__lt=start_date,
-        ).aggregate(total=Sum("paid_amount"))["total"]
+            status="Paid",
+            created_at__date__lt=start_date,
+        ).aggregate(total=Sum("total_amount"))["total"]
         or 0.0
     )
 
@@ -638,17 +656,17 @@ def generate_order_tracking_statement_optimized(
         cancelled_map[d]["charge"] += float(log.order.ydm_cancelled_charge or 0.0)
 
     payments = (
-        Invoice.objects
+        CodPayment.objects
         .filter(
             user_id=user_id,
-            is_approved=True,
-            approved_at__date__range=[start_date, end_date],
+            status="Paid",
+            created_at__date__range=[start_date, end_date],
         )
-        .values("approved_at__date")
-        .annotate(amount=Sum("paid_amount"))
+        .values("created_at__date")
+        .annotate(amount=Sum("total_amount"))
     )
     payments_map = {
-        row["approved_at__date"]: float(row["amount"] or 0.0) for row in payments
+        row["created_at__date"]: float(row["amount"] or 0.0) for row in payments
     }
 
     # 3. Accumulate day-by-day
@@ -656,7 +674,9 @@ def generate_order_tracking_statement_optimized(
     curr = start_date
     while curr <= end_date:
         placed = placed_map.get(curr, {"count": 0, "amount": 0.0})
-        deliv = delivered_map.get(curr, {"count": 0, "delivered_amount": 0.0, "charge": 0.0})
+        deliv = delivered_map.get(
+            curr, {"count": 0, "delivered_amount": 0.0, "charge": 0.0}
+        )
         canc = cancelled_map.get(curr, {"charge": 0.0})
 
         day_charge = deliv["charge"] + canc["charge"]
@@ -665,12 +685,7 @@ def generate_order_tracking_statement_optimized(
         running_balance += deliv["delivered_amount"] - day_charge - pay
 
         # Only append if there is actual activity on this day
-        if (
-            placed["count"] > 0
-            or deliv["count"] > 0
-            or day_charge > 0
-            or pay > 0
-        ):
+        if placed["count"] > 0 or deliv["count"] > 0 or day_charge > 0 or pay > 0:
             statement_data.append({
                 "date": curr,
                 "total_order": placed["count"],
@@ -691,7 +706,7 @@ def generate_order_tracking_statement_optimized(
 def calculate_just_pending_cod(user_id) -> float:
     """
     Returns only the net pending COD amount for a given user.
-    Optimized to run in exactly two database queries (one for Orders, one for Invoices).
+    Optimized to run in exactly two database queries (one for Orders, one for CodPayments).
     """
     # 1. Gather all order calculations in a single query pass
     order_metrics = Order.objects.filter(user_id=user_id).aggregate(
@@ -722,8 +737,8 @@ def calculate_just_pending_cod(user_id) -> float:
     )
 
     # 2. Sum the approved payments
-    approved_paid = Invoice.objects.filter(user_id=user_id, is_approved=True).aggregate(
-        total=Coalesce(Sum("paid_amount"), 0.0, output_field=models.DecimalField())
+    approved_paid = CodPayment.objects.filter(user_id=user_id, status="Paid").aggregate(
+        total=Coalesce(Sum("total_amount"), 0.0, output_field=models.DecimalField())
     )["total"]
 
     # 3. Apply the financial formula

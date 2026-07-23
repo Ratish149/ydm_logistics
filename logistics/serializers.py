@@ -63,6 +63,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     comment = serializers.CharField(
         write_only=True, required=False, allow_blank=True, default=""
     )
+    net_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -82,6 +83,9 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "recipient_district",
             "cod_amount",
             "delivery_charge",
+            "ydm_delivery_charge",
+            "ydm_cancelled_charge",
+            "net_amount",
             "payment_type",
             "product",
             "special_instructions",
@@ -99,6 +103,24 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             "comments",
             "comment",
         ]
+
+    def get_net_amount(self, obj):
+        cancellation_statuses = [
+            Order.STATUS_CANCELLED,
+            Order.STATUS_RETURNING_TO_VENDOR,
+            Order.STATUS_RETURNED_TO_VENDOR,
+        ]
+        if obj.status in cancellation_statuses:
+            cancellation_charge = obj.ydm_cancelled_charge or 0
+            return -cancellation_charge
+
+        cod = obj.cod_amount or 0
+        delivery_charge = (
+            obj.ydm_delivery_charge
+            if obj.ydm_delivery_charge is not None
+            else (obj.delivery_charge or 0)
+        )
+        return cod - delivery_charge
 
     def update(self, instance, validated_data):
         comment = validated_data.pop("comment", "").strip()
@@ -148,12 +170,15 @@ class OrderListSerializer(serializers.ModelSerializer):
         source="assigned_rider.get_full_name", default="", read_only=True
     )
     latest_status_comment = serializers.SerializerMethodField()
+    net_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = [
             "tracking_number",
             "external_order_code",
+            "sender_name",
+            "sender_phone",
             "recipient_name",
             "recipient_phone",
             "recipient_address",
@@ -161,6 +186,9 @@ class OrderListSerializer(serializers.ModelSerializer):
             "recipient_district",
             "cod_amount",
             "delivery_charge",
+            "ydm_delivery_charge",
+            "ydm_cancelled_charge",
+            "net_amount",
             "payment_type",
             "status",
             "assigned_rider",
@@ -169,6 +197,24 @@ class OrderListSerializer(serializers.ModelSerializer):
             "created_at",
             "latest_status_comment",
         ]
+
+    def get_net_amount(self, obj):
+        cancellation_statuses = [
+            Order.STATUS_CANCELLED,
+            Order.STATUS_RETURNING_TO_VENDOR,
+            Order.STATUS_RETURNED_TO_VENDOR,
+        ]
+        if obj.status in cancellation_statuses:
+            cancellation_charge = obj.ydm_cancelled_charge or 0
+            return -cancellation_charge
+
+        cod = obj.cod_amount or 0
+        delivery_charge = (
+            obj.ydm_delivery_charge
+            if obj.ydm_delivery_charge is not None
+            else (obj.delivery_charge or 0)
+        )
+        return cod - delivery_charge
 
     def get_latest_status_comment(self, obj):
         logs = [

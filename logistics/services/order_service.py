@@ -124,16 +124,30 @@ def handle_order_status_change(
         comment=comment,
     )
 
-    # 2. if order status is change to cancelled status then add the cancellation charge from YdmLogisticsSetting
-    if new_status == Order.STATUS_CANCELLED:
+    cancellation_statuses = [
+        Order.STATUS_CANCELLED,
+        Order.STATUS_RETURNING_TO_VENDOR,
+        Order.STATUS_RETURNED_TO_VENDOR,
+    ]
+
+    # 2. if order status is changed to cancelled / returning / returned status then add cancellation charge and remove delivery charge
+    if new_status in cancellation_statuses and old_status not in cancellation_statuses:
         setting = YdmLogisticsSetting.load()
         order.ydm_cancelled_charge = setting.cancelled_charge
-        order.save(update_fields=["ydm_cancelled_charge"])
+        order.ydm_delivery_charge = 0
+        order.save(update_fields=["ydm_cancelled_charge", "ydm_delivery_charge"])
 
-    # 3. and if order is change from cancelled to other status then remove the cancellation charge
-    elif old_status == Order.STATUS_CANCELLED:
-        order.ydm_cancelled_charge = None
-        order.save(update_fields=["ydm_cancelled_charge"])
+    # 3. if order is changed from a cancelled / returning / returned status to another status, reset cancellation charge and restore delivery charge if location type is set
+    elif (
+        old_status in cancellation_statuses and new_status not in cancellation_statuses
+    ):
+        setting = YdmLogisticsSetting.load()
+        order.ydm_cancelled_charge = 0
+        if order.delivery_location_type == "Inside Ringroad":
+            order.ydm_delivery_charge = setting.inside_ringroad_charge
+        elif order.delivery_location_type == "Outside Ringroad":
+            order.ydm_delivery_charge = setting.outside_ringroad_charge
+        order.save(update_fields=["ydm_cancelled_charge", "ydm_delivery_charge"])
 
 
 @transaction.atomic

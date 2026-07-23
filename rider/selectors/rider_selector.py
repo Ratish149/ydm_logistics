@@ -187,13 +187,23 @@ def get_rider_package_stats(
 def get_rider_orders_queryset(rider: CustomUser) -> QuerySet[Order]:
     """
     Returns pre-optimized Order queryset for the rider.
+    Non-delivered orders appear first before delivered orders.
     """
+    from django.db.models import Case, Value, When
+
     return (
         Order.objects
         .filter(assigned_rider=rider)
         .select_related("user", "assigned_rider")
         .prefetch_related("change_logs", "comments")
-        .order_by("-id")
+        .annotate(
+            sort_order=Case(
+                When(status=Order.STATUS_DELIVERED, then=Value(1)),
+                When(status=Order.STATUS_CANCELLED, then=Value(1)),
+                default=Value(0),
+            )
+        )
+        .order_by("sort_order", "-id")
     )
 
 
