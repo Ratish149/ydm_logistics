@@ -4,7 +4,11 @@ from payment.views import (
     CodPaymentListCreateAPIView,
     CodPaymentOrdersListAPIView,
     CodPaymentRetrieveUpdateDestroyAPIView,
+    DeliveryBillPaymentListCreateAPIView,
+    DeliveryBillPaymentOrdersListAPIView,
+    DeliveryBillPaymentRetrieveUpdateDestroyAPIView,
     UnpaidCodOrdersListAPIView,
+    UnpaidDeliveryBillOrdersListAPIView,
 )
 
 urlpatterns = [
@@ -27,5 +31,25 @@ urlpatterns = [
         "payment/<int:pk>/",
         CodPaymentRetrieveUpdateDestroyAPIView.as_view(),
         name="cod-payment-detail",
+    ),
+    path(
+        "delivery-bill/",
+        DeliveryBillPaymentListCreateAPIView.as_view(),
+        name="delivery-bill-list-create",
+    ),
+    path(
+        "delivery-bill/orders/",
+        DeliveryBillPaymentOrdersListAPIView.as_view(),
+        name="delivery-bill-orders-list",
+    ),
+    path(
+        "delivery-bill/unpaid-orders/",
+        UnpaidDeliveryBillOrdersListAPIView.as_view(),
+        name="unpaid-delivery-bill-orders-list",
+    ),
+    path(
+        "delivery-bill/<int:pk>/",
+        DeliveryBillPaymentRetrieveUpdateDestroyAPIView.as_view(),
+        name="delivery-bill-detail",
     ),
 ]

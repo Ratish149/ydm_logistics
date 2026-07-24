@@ -4,7 +4,7 @@ from rest_framework import serializers
 from account.serializers import UserListSerializer
 from logistics.models import Order
 from logistics.serializers import OrderListSerializer
-from payment.models import CodPayment
+from payment.models import CodPayment, DeliveryBillPayment
 
 User = get_user_model()
 
@@ -118,3 +118,52 @@ class CodPaymentOrderListSerializer(serializers.ModelSerializer):
         if latest_payment and latest_payment.status == "Paid":
             return "Paid"
         return "Pending"
+
+
+class DeliveryBillPaymentSerializer(serializers.ModelSerializer):
+    orders = serializers.PrimaryKeyRelatedField(
+        queryset=Order.objects.all(), many=True, required=False
+    )
+    orders_detail = OrderListSerializer(source="orders", many=True, read_only=True)
+    user_detail = UserListSerializer(source="user", read_only=True)
+    created_by_detail = UserListSerializer(source="created_by", read_only=True)
+
+    class Meta:
+        model = DeliveryBillPayment
+        fields = [
+            "id",
+            "bill_number",
+            "user",
+            "user_detail",
+            "created_by",
+            "created_by_detail",
+            "orders",
+            "orders_detail",
+            "delivery_amount",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_by", "created_at", "updated_at"]
+
+
+class DeliveryBillPaymentListSerializer(serializers.ModelSerializer):
+    transfer_date = serializers.DateTimeField(source="created_at", read_only=True)
+    order_count = serializers.SerializerMethodField()
+    delivery_amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+
+    class Meta:
+        model = DeliveryBillPayment
+        fields = [
+            "id",
+            "bill_number",
+            "transfer_date",
+            "order_count",
+            "delivery_amount",
+            "status",
+        ]
+
+    def get_order_count(self, obj):
+        return obj.orders.count()
