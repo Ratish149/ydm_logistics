@@ -1,4 +1,5 @@
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 from account.models import APIKey
@@ -139,3 +140,14 @@ class VendorListSerializer(serializers.ModelSerializer):
             "new_order_count",
         ]
         read_only_fields = fields
+
+
+class UserChangePasswordSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, required=True)
+
+    def update(self, instance, validated_data):
+        from account.services.user_service import change_user_password
+
+        new_password = validated_data["new_password"]
+        return change_user_password(user=instance, new_password=new_password)
+

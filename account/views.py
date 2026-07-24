@@ -12,6 +12,7 @@ from account.filters import UserFilter, VendorFilter
 from account.permissions import HasValidAPIKey, IsYDM
 from account.serializers import (
     APIKeySerializer,
+    UserChangePasswordSerializer,
     UserListSerializer,
     UserLoginSerializer,
     UserRegisterSerializer,
@@ -129,6 +130,36 @@ class UserDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserUpdateSerializer
     authentication_classes = [JWTAuthentication, APIKeyAuthentication]
     permission_classes = [HasValidAPIKey]
+
+
+class UserChangePasswordAPI(generics.UpdateAPIView):
+    """
+    PUT/PATCH: Change password for a specific user based on user_id or pk.
+    """
+
+    queryset = User.objects.all()
+    serializer_class = UserChangePasswordSerializer
+    authentication_classes = [JWTAuthentication, APIKeyAuthentication]
+    permission_classes = [HasValidAPIKey]
+    lookup_url_kwarg = "user_id"
+
+    def get_object(self):
+        user_id = self.kwargs.get("user_id") or self.kwargs.get("pk")
+        return generics.get_object_or_404(User, pk=user_id)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(
+            instance, data=request.data, partial=partial, context={"user": instance}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {"message": "Password changed successfully."},
+            status=status.HTTP_200_OK,
+        )
+
 
 
 class VendorListAPI(generics.ListAPIView):

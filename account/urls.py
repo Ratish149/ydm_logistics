@@ -2,6 +2,7 @@ from django.urls import path
 
 from account.views import (
     APIKeyListGenerateAPI,
+    UserChangePasswordAPI,
     UserDetailAPI,
     UserListAPI,
     UserLoginAPI,
@@ -15,5 +16,11 @@ urlpatterns = [
     path("api-keys/", APIKeyListGenerateAPI.as_view(), name="api-keys"),
     path("users/", UserListAPI.as_view(), name="user-list"),
     path("users/<int:pk>/", UserDetailAPI.as_view(), name="user-detail"),
+    path(
+        "users/<int:user_id>/change-password/",
+        UserChangePasswordAPI.as_view(),
+        name="user-change-password",
+    ),
     path("vendors/", VendorListAPI.as_view(), name="vendor-list"),
 ]
+
